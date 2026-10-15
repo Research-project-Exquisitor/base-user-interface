@@ -6,6 +6,29 @@ export const mock = false
 
 export const getMainURI = () => exqURI
 
+let sessionId = ''
+
+/** Session ID sent with every request, so the server's log lines show it. */
+export const setSessionId = (id: string): void => {
+    sessionId = id
+}
+
+/** A short random ID per request; the server tags its log lines with it. */
+function newRequestId(): string {
+    const bytes = crypto.getRandomValues(new Uint8Array(6))
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Headers for every request to the engine. */
+export function exqHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'X-Exq-Request-Id': newRequestId(),
+    }
+    if (sessionId) headers['X-Exq-Session'] = sessionId
+    return headers
+}
+
 export class HttpError extends Error {
     constructor(
         message: string,
@@ -31,7 +54,7 @@ export async function post<T>(path: string, body: unknown, signal?: AbortSignal)
     const resp = await fetch(exqURI + path, {
         method: 'POST',
         mode: 'cors',
-        headers: { 'Content-Type': 'application/json' },
+        headers: exqHeaders(),
         body: JSON.stringify(body),
         signal,
     })
@@ -43,7 +66,7 @@ export async function get<T>(path: string): Promise<T> {
     const resp = await fetch(exqURI + path, {
         method: 'GET',
         mode: 'cors',
-        headers: { 'Content-Type': 'application/json' },
+        headers: exqHeaders(),
     })
     await checkResponse(resp, 'GET')
     return resp.json()
