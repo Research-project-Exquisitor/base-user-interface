@@ -136,6 +136,15 @@
              density="comfortable"
             />
 
+            <v-switch
+             :data-eid="'toggle_submit_buttons_' + activeModel!.id"
+             v-model="appStore.submitButtonsOn"
+             label="Show submit buttons"
+             color="primary"
+             density="comfortable"
+             hide-details
+            />
+
             <v-divider class="my-4" />
 
             <div class="text-subtitle-2 font-weight-bold mb-2">Q&A Answer</div>

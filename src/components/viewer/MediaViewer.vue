@@ -105,7 +105,7 @@
       <div v-if="selectedItem" class="viewer-controls" :data-eid="eid('controls')">
         <div class="d-flex align-center ga-2">
           <v-btn
-          v-if="appStore.selectedEvaluation.id !== ''"
+          v-if="appStore.submitEnabled"
            color="teal"
            size="small"
            variant="flat"
@@ -377,8 +377,8 @@ function submitCurrent() {
 
   snackColor.value = 'indigo'
 
-  const start = currentTime.value * 1000
-  const end = currentTime.value * 1000
+  const start = Math.round(currentTime.value * 1000)
+  const end = Math.round((currentTime.value+2) * 1000)
 
   submitAnswer({
     session_info: {
@@ -387,7 +387,6 @@ function submitCurrent() {
       collection: modelStore.getModelCollection(activeModelId.value)
     },
     name: (selectedItem.value.metadata as any)?.['Video ID'] ?? '',
-    text: '',
     qa: false,
     start,
     end,

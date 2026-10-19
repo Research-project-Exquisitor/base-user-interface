@@ -49,7 +49,7 @@
             :aspect-ratio="aspectRatio"
             :btn-pos="showOppositePos"
             :btn-neg="showOppositeNeg"
-            :btn-submit="false"
+            :btn-submit="true"
             :history-enabled="historyEnabled"
             :show-remove="true"
             :remove-set="props.set"

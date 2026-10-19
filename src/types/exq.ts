@@ -140,12 +140,11 @@ export interface ExqGetExcludedGroupsResponse {
 export interface ExqSubmissionRequest {
   session_info: ExqSessionInfo
   name?: string
-  text: string
+  text?: string
   qa: boolean
   evalId: string
   start?: number
   end?: number
-  itemId?: number
 }
 
 export interface ExqClearItemSetRequest {

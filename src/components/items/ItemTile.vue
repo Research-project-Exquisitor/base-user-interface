@@ -89,15 +89,16 @@
             </v-btn>
 
             <v-btn
-              v-if="btnSubmit"
+              v-if="btnSubmit && appStore.submitEnabled"
               :data-eid="eid('btn_submit')"
               class="tile-btn"
               density="compact"
               size="x-small"
               color="blue"
               icon
-              :disabled="isSubmitted"
-              @click.stop="emitAdd(ILSets.Submitted)"
+              :disabled="isSubmitted || submitting"
+              :loading="submitting"
+              @click.stop="submit"
             >
               <v-icon size="16">mdi-send</v-icon>
             </v-btn>
@@ -140,6 +141,10 @@ import { computed, ref, watch } from 'vue'
 import type MediaItem from '@/types/mediaitem'
 import { GroupMetadata, ILSets, MediaType } from '@/types/mediaitem'
 import { useItemStore } from '@/stores/item'
+import { useAppStore } from '@/stores/app'
+import { useModelStore } from '@/stores/model'
+import { useErrorStore } from '@/stores/error'
+import { submitAnswer } from '@/services/ExquisitorAPI'
 
 const props = defineProps<{
   itemId: number
@@ -175,6 +180,7 @@ const emit = defineEmits<{
 }>()
 
 const itemStore = useItemStore()
+const appStore = useAppStore()
 
 // --- data-eid helpers (include item + model info) ---
 const eidBase = computed(() => `item_tile_${props.itemId}_model_${props.modelId}`)
@@ -250,6 +256,51 @@ const segment = computed(() => {
 
   return { isSegment: false, startMs: null as number | null, endMs: null as number | null }
 })
+
+// --- submission ---
+// Shots longer than this are narrowed to a window around the midpoint (= keyframe)
+const LONG_SHOT_MS = 5000
+const MIDPOINT_HALF_WINDOW_MS = 1000
+
+const submitting = ref(false)
+
+async function submit() {
+  const md: any = mdRef.value ?? props.item?.metadata ?? {}
+  const name = md['Video ID'] ?? ''
+  const { isSegment, startMs, endMs } = segment.value
+  if (!name || !isSegment || startMs == null || endMs == null) {
+    useErrorStore().show(`Cannot submit item ${props.itemId}: missing Video ID or Start/End (ms).`)
+    return
+  }
+
+  let start = startMs
+  let end = endMs
+  if (endMs - startMs > LONG_SHOT_MS) {
+    const mid = (startMs + endMs) / 2
+    start = mid - MIDPOINT_HALF_WINDOW_MS
+    end = mid + MIDPOINT_HALF_WINDOW_MS
+  }
+
+  submitting.value = true
+  try {
+    // Errors propagate to the global errorHandler, which shows the error dialog
+    await submitAnswer({
+      session_info: {
+        session: appStore.session,
+        modelId: props.modelId,
+        collection: useModelStore().getModelCollection(props.modelId),
+      },
+      name,
+      qa: false,
+      start: Math.round(start),
+      end: Math.round(end),
+      evalId: appStore.selectedEvaluation.id,
+    })
+    emitAdd(ILSets.Submitted)
+  } finally {
+    submitting.value = false
+  }
+}
 
 /**
  * Video source selection:

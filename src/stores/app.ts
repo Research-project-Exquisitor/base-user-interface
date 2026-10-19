@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { getMainURI } from "@/services/ExquisitorAPI"
 import { defineStore } from "pinia"
-import { ref, reactive } from "vue"
+import { ref, reactive, computed } from "vue"
 
 interface Collection {
   name: string
@@ -17,8 +17,15 @@ export const useAppStore = defineStore('app', () => {
   const collections = ref<Collection[]>([])
   const success = ref(true)
   const evaluations: {id: string, name: string}[] = reactive([])
-  const selectedEvaluation: {id: string, name: string} = reactive({id: '', name: ''})
+  // ref (not reactive) so the settings v-model can replace the whole object
+  // without leaving submitEnabled reading a stale one
+  const selectedEvaluation = ref<{id: string, name: string}>({id: '', name: ''})
   const exqURI = getMainURI()
+
+  // Submit buttons are only shown when switched on in settings
+  // and there's an evaluation to submit to
+  const submitButtonsOn = ref(true)
+  const submitEnabled = computed(() => submitButtonsOn.value && selectedEvaluation.value.id !== '')
 
   // global UI settings
   const themeId = ref<ThemeId>('graphiteDark')
@@ -27,6 +34,8 @@ export const useAppStore = defineStore('app', () => {
 
   return {
     selectedEvaluation,
+    submitButtonsOn,
+    submitEnabled,
     session,
     collections,
     success,
