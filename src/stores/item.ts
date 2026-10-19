@@ -3,18 +3,18 @@
 import { GroupMetadata, ILSets, } from "@/types/mediaitem";
 import type MediaItem from "@/types/mediaitem";
 import { defineStore } from "pinia";
-import { reactive } from "vue";
-import { getItem, getItemInfo, getRelatedItems } from "@/services/ExquisitorAPI";
+import { reactive, ref } from "vue";
+import { getItem, getRelatedItems } from "@/services/ExquisitorAPI";
 import { useAppStore } from "@/stores/app";
 import { useModelStore } from "./model";
 import { useFilterStore } from "./filter";
-// import { getItem } from "@/services/MockExquisitorAPI";
+import { useGroupStore } from "./group";
+
+type Metadata = Record<string, number | string | (number | string)[]>
 
 export const useItemStore = defineStore('item', () => {
   // K = ItemId, V = MediaItem
   const items : Map<string, Map<number, MediaItem>> = reactive(new Map<string, Map<number,MediaItem>>())
-  // K = groupId, V = GroupMetdata
-  const groupMetadata : Map<number, GroupMetadata> = reactive(new Map<number, GroupMetadata>())
   // K = modelId, V = Set<ItemId>
   const modelItems : Map<number, Set<number>> = reactive(new Map<number,Set<number>>())
   // modelId -> set -> (itemId -> addedAt)
@@ -25,80 +25,65 @@ export const useItemStore = defineStore('item', () => {
   
   const selectedItem : Map<number, MediaItem> = reactive(new Map<number, MediaItem>())
   const selectedGroup : Map<number, GroupMetadata> = reactive(new Map<number, GroupMetadata>())
-  
-  const pendingControllers = new Map<string, AbortController>()
-  
+  // Set when the selected item's video info failed to load, so the viewer can say so
+  const selectionFailed = ref(false)
+
   const filterStore = useFilterStore()
+  const groupStore = useGroupStore()
   const appStore = useAppStore()
-  
+
+  // In-flight requests keyed by `${collection}/${itemId}`, so concurrent callers share one request
+  const inflightBase = new Map<string, Promise<MediaItem>>()
+  const inflightInfo = new Map<string, Promise<Metadata>>()
+
+  function collectionMap(collection: string): Map<number, MediaItem> {
+    if (!items.has(collection)) items.set(collection, new Map<number, MediaItem>())
+    return items.get(collection)!
+  }
+
+  function trackModelItems(modelId: number, itemIds: number[]) {
+    if (!modelItems.has(modelId)) modelItems.set(modelId, new Set<number>())
+    const tracked = modelItems.get(modelId)!
+    itemIds.forEach(id => tracked.add(id))
+  }
+
   async function fetchMediaItem(itemId: number, modelId: number) : Promise<MediaItem> {
     const collection = modelStore.getModelCollection(modelId)
-    if (modelItems.has(modelId)) {
-      modelItems.get(modelId)!.add(itemId)
-    } else {
-      modelItems.set(modelId, new Set<number>())
-      modelItems.get(modelId)!.add(itemId)
-    }
-    
-    if (!items.has(collection)) {
-      items.set(collection, new Map<number, MediaItem>())
-    }
-    if (items.get(collection)!.has(itemId)) {
-      // console.log('Fetching media item ' + itemId + ' from memory')
-      if (!items.get(collection)!.get(itemId)!.currentSets!.has(modelId)) {
-        items.get(collection)!.get(itemId)!.currentSets!.set(modelId, [false,false,false,false])
-      }
-      return items.get(collection)!.get(itemId)! // '!' Non-null
-    } else {
-      const key = `${collection}/${modelId}/${itemId}`
-      const ctrl = new AbortController()
-      pendingControllers.set(key, ctrl)
-      // console.log('Fetching media item ' + itemId + ' from API')
-      try {
-        const item = await getItem(
-          appStore.session, 
-          itemId, modelId, 
-          modelStore.getModelCollection(modelId),
-          { signal: ctrl.signal }
-        )
-        items.get(collection)!.set(itemId, item)
-        // console.log('itemId', items.get(collection)!.get(itemId))
-        return item
-      } finally {
-        pendingControllers.delete(key)
-      }
-    }
+    const [item] = await fetchMediaItems([itemId], modelId, collection)
+    return item
   }
-  
-  async function fetchMediaItems(itemIds: number[], modelId: number, collection: string) : Promise<MediaItem[]> {
-    if (!items.has(collection)) items.set(collection, new Map<number, MediaItem>())
-      if (!modelItems.has(modelId)) modelItems.set(modelId, new Set<number>())
-        
-    // Track model items
-    itemIds.forEach(id => modelItems.get(modelId)!.add(id))
-    
-    const colMap = items.get(collection)!
+
+  // Base info for many items. Aborting the signal cancels the running requests,
+  // for example when the viewer switches to another video.
+  async function fetchMediaItems(itemIds: number[], modelId: number, collection: string, signal?: AbortSignal) : Promise<MediaItem[]> {
+    const colMap = collectionMap(collection)
+    trackModelItems(modelId, itemIds)
+
     const missing = itemIds.filter(id => !colMap.has(id))
     if (missing.length > 0) {
-      // TODO (future batch endpoint):
-      // Replace Promise.all below with a single API call that accepts an array of ids:
-      // const batch = await getItems(appStore.session, missing, modelId, collection)
-      // for (const it of batch) colMap.set(it.id, it)
-      
-      const fetched = await Promise.all(
-        missing.map(id => getItem(appStore.session, id, modelId, collection))
-      )
-      for (const it of fetched) colMap.set(it.id, it)
-      }
-    
-    // Ensure currentSets entry exists for this model
-    for (const id of itemIds) {
-      const it = colMap.get(id)!
-      if (!it.currentSets) it.currentSets = new Map()
-        if (!it.currentSets.has(modelId)) it.currentSets.set(modelId, [false, false, false, false])
-        }
-    
+      // TODO (future batch endpoint) Replace with a single API call for all ids
+      await Promise.all(missing.map(id => loadBaseItem(id, modelId, collection, signal)))
+    }
+
+    for (const id of itemIds) ensureItemSetEntry(id, modelId)
     return itemIds.map(id => colMap.get(id)!)
+  }
+
+  function loadBaseItem(itemId: number, modelId: number, collection: string, signal?: AbortSignal): Promise<MediaItem> {
+    const key = `${collection}/${itemId}`
+    let p = inflightBase.get(key)
+    if (!p) {
+      p = getItem(appStore.session, itemId, modelId, collection, { signal })
+        .then(it => {
+          const colMap = collectionMap(collection)
+          // Keep the cached item if its metadata arrived while this was in flight
+          if (!colMap.has(itemId)) colMap.set(itemId, it)
+          return colMap.get(itemId)!
+        })
+        .finally(() => inflightBase.delete(key))
+      inflightBase.set(key, p)
+    }
+    return p
   }
   
   function ensureItemSetEntry(exqId: number, modelId: number) {
@@ -251,151 +236,91 @@ export const useItemStore = defineStore('item', () => {
     return setItems
   }
 
-  async function fetchItemInfo(modelId: number, itemId: number): Promise<Record<string, number | string | (number | string)[]>> {
+  // Item metadata (shot times, Video ID and so on) from /item/info with the item tagsets.
+  // It's only fetched on demand for the selected item, a hover preview or a submit.
+  async function fetchItemInfo(modelId: number, itemId: number): Promise<Metadata> {
     const collection = modelStore.getModelCollection(modelId)
-    let item_filter_ids : number[] = []
-    const mainTagsets = filterStore.mainItemTagsets
-    const otherTagsets = filterStore.otherItemTagsets
-    // Get filter IDs for main and other item metadata
-    for (let i = 0; i < mainTagsets.length; i++) {
-      if (filterStore.filterNameIdMap.has(collection) && filterStore.filterNameIdMap.get(collection)!.has(mainTagsets[i])) {
-        item_filter_ids.push(filterStore.filterNameIdMap.get(collection)!.get(mainTagsets[i])!)
-      }
-    }
-    for (let i = 0; i < otherTagsets.length; i++) {
-      if (filterStore.filterNameIdMap.has(collection) && filterStore.filterNameIdMap.get(collection)!.has(otherTagsets[i])) {
-        item_filter_ids.push(filterStore.filterNameIdMap.get(collection)!.get(otherTagsets[i])!)
-      }
-    }
-    // console.log('item_filter_ids:', item_filter_ids)
-    
-    // Fetch metadata
-    let metadata = await getItemInfo(appStore.session, modelId, itemId, collection, item_filter_ids)
-    items.get(collection)!.get(itemId)!.metadata = {}
-    
-    // Populate main and other item/group metadata
-    for (let i = 0; i < filterStore.mainItemTagsets.length; i++) {
-      if (metadata[filterStore.mainItemTagsets[i]] !== undefined) {
-        items.get(collection)!.get(itemId)!.metadata![filterStore.mainItemTagsets[i]] = metadata[filterStore.mainItemTagsets[i]]
-      }
-    }
-    for (let i = 0; i < filterStore.otherItemTagsets.length; i++) {
-      if (metadata[filterStore.otherItemTagsets[i]] !== undefined) {
-        items.get(collection)!.get(itemId)!.metadata![filterStore.otherItemTagsets[i]] = metadata[filterStore.otherItemTagsets[i]]
-      }
-    }
-    return items.get(collection)!.get(itemId)!.metadata!
-  }
+    const cached = items.get(collection)?.get(itemId)?.metadata
+    if (cached) return cached
 
-  async function fetchGroupInfo(modelId: number, groupId: number): Promise<GroupMetadata> {
-    const collection = modelStore.getModelCollection(modelId)
-    if (groupMetadata.has(groupId)) {
-      return groupMetadata.get(groupId)!
+    const key = `${collection}/${itemId}`
+    let p = inflightInfo.get(key)
+    if (!p) {
+      const filterIds = filterStore.tagsetIds(collection, [...filterStore.mainItemTagsets, ...filterStore.otherItemTagsets])
+      p = getItem(appStore.session, itemId, modelId, collection, { filterIds })
+        .then(info => {
+          const metadata = info.metadata ?? {}
+          const colMap = collectionMap(collection)
+          const existing = colMap.get(itemId)
+          if (existing) existing.metadata = metadata
+          else colMap.set(itemId, { ...info, metadata })
+          return metadata
+        })
+        .finally(() => inflightInfo.delete(key))
+      inflightInfo.set(key, p)
     }
-    
-    const mainTagsets = filterStore.mainGroupTagsets
-    const otherTagsets = filterStore.otherGroupTagsets
-    
-    let group_filter_ids : number[] = []
-    // Get filter IDs for group metadata
-    for (let i = 0; i < mainTagsets.length; i++) {
-      if (filterStore.filterNameIdMap.has(collection) && filterStore.filterNameIdMap.get(collection)!.has(mainTagsets[i])) {
-        group_filter_ids.push(filterStore.filterNameIdMap.get(collection)!.get(mainTagsets[i])!)
-      }
-    }
-    
-    for (let i = 0; i < otherTagsets.length; i++) {
-      if (filterStore.filterNameIdMap.has(collection) && filterStore.filterNameIdMap.get(collection)!.has(otherTagsets[i])) {
-        group_filter_ids.push(filterStore.filterNameIdMap.get(collection)!.get(otherTagsets[i])!)
-      }
-    }
-    
-    // Initialize group metadata entry if not present
-    if (!groupMetadata.has(groupId)) {
-      let groupInfo =  await fetchMediaItem(groupId, modelId)
-      groupMetadata.set(groupId, {
-        src: groupInfo.srcPath,
-        groupMediaType: groupInfo.mediaType,
-        items: [],
-        metadata: {}
-      })
-    }
-    
-    // Fetch metadata
-    let metadata = await getItemInfo(appStore.session, modelId, groupId, collection, group_filter_ids)
-    if (Object.keys(metadata).length === 0) {
-      // No metadata found
-      return groupMetadata.get(groupId)!
-    }
-    
-    for (let i = 0; i < filterStore.mainGroupTagsets.length; i++) {
-      if (metadata[filterStore.mainGroupTagsets[i]] !== undefined) {
-        groupMetadata.get(groupId)!
-        .metadata[filterStore.mainGroupTagsets[i]] = metadata[filterStore.mainGroupTagsets[i]]
-      }
-    }
-    for (let i = 0; i < filterStore.otherGroupTagsets.length; i++) {
-      if (metadata[filterStore.otherGroupTagsets[i]] !== undefined) {
-        groupMetadata.get(groupId)!
-        .metadata[filterStore.otherGroupTagsets[i]] = metadata[filterStore.otherGroupTagsets[i]]
-      }
-    }
-    return groupMetadata.get(groupId)!
+    return p
   }
 
   async function fetchRelatedItems(modelId: number, groupId: number): Promise<number[]> {
     const collection = modelStore.getModelCollection(modelId)
-    if (groupMetadata.has(groupId) && groupMetadata.get(groupId)!.items.length > 0) {
-      return groupMetadata.get(groupId)!.items
+    const group = groupStore.get(collection, groupId)!
+    if (group.items.length > 0) return group.items
+
+    group.itemsLoaded = false
+    try {
+      // Ask the server for time order because item IDs aren't guaranteed to follow time
+      const [sortBy] = filterStore.tagsetIds(collection, ['Start (ms)', 'Keyframe (ms)'])
+      const relatedItems = await getRelatedItems(appStore.session, modelId, groupId, collection, sortBy)
+      group.items = relatedItems
+      return relatedItems
+    } finally {
+      // Also on failure, so the grid stops showing a spinner
+      group.itemsLoaded = true
     }
-    let relatedItems = await getRelatedItems(appStore.session, modelId, groupId, collection)
-    groupMetadata.get(groupId)!.items = relatedItems
-    return relatedItems
   }
 
-  async function setSelectedItem(itemId: number) {
-    if (activeModel.value) {
-      const collection = modelStore.getModelCollection(activeModel.value.id)
-      let item = items.get(collection)!.get(itemId)!
-      let groupId = 0
-      if (item.metadata === undefined) {
-        item.metadata = await fetchItemInfo(activeModel.value!.id, item.id)
-      }
-      if (!groupMetadata.has(item.groupId!)) {
-        await fetchGroupInfo(activeModel.value!.id, item.groupId!)
-      }
-      if (groupMetadata.get(item.groupId!)!.items === undefined || groupMetadata.get(item.groupId!)!.items.length === 0) {
-        await fetchRelatedItems(activeModel.value!.id, item.groupId!)
-        if (groupMetadata.get(item.groupId!)!.items.length > 0) {
-          for (let i = 0; i < groupMetadata.get(item.groupId!)!.items.length; i++) {
-            if (groupMetadata.get(item.groupId!)!.items[i] === item.id) {
-              groupId = i
-              break
-            }
-          }
-        }
-      }
-      selectedItem.set(activeModel.value.id, items.get(collection)!.get(itemId)!)
-      selectedGroup.set(activeModel.value.id, groupMetadata.get(item.groupId!)!)
-      return groupId
+  async function setSelectedItem(itemId: number): Promise<void> {
+    if (!activeModel.value) return
+    const modelId = activeModel.value.id
+    const collection = modelStore.getModelCollection(modelId)
+    const item = items.get(collection)!.get(itemId)!
+    const groupId = item.groupId!
+
+    // Select right away so the viewer opens instantly. The current group is kept only
+    // if it's the same video, which then just seeks. Otherwise the viewer shows a
+    // placeholder until the new video can start at the right position.
+    selectedItem.set(modelId, item)
+    selectionFailed.value = false
+    if (selectedGroup.get(modelId) !== groupStore.get(collection, groupId)) selectedGroup.delete(modelId)
+
+    // The video needs the group's src and this shot's start time, so fetch both at once
+    let group: GroupMetadata
+    try {
+      [, group] = await Promise.all([
+        item.metadata === undefined ? fetchItemInfo(modelId, itemId) : undefined,
+        groupStore.fetchGroupInfo(collection, groupId, modelId),
+      ])
+    } catch (err) {
+      if (selectedItem.get(modelId)?.id === itemId) selectionFailed.value = true
+      throw err
     }
-    return -1
+
+    // Another item may have been selected while this one was loading
+    if (selectedItem.get(modelId)?.id !== itemId) return
+    selectedGroup.set(modelId, group)
+
+    // Related IDs fill in reactively once they arrive
+    await fetchRelatedItems(modelId, groupId)
   }
 
   function getSelectedItem() : MediaItem {
     return selectedItem.get(activeModel.value!.id)!
   }
   
-  function getSelectedGroup() : GroupMetadata {
-    return selectedGroup.get(activeModel.value!.id)!
-  }
-  
-  function abortAllPending() {
-    // tear down _every_ in‐flight request
-    for (const ctrl of pendingControllers.values()) {
-      ctrl.abort()
-    }
-    pendingControllers.clear()
+  // undefined while a newly selected item's video is still loading
+  function getSelectedGroup() : GroupMetadata | undefined {
+    return selectedGroup.get(activeModel.value!.id)
   }
 
   function setAddedAtMap(modelId: number, set: ILSets): Map<number, number> {
@@ -415,6 +340,7 @@ export const useItemStore = defineStore('item', () => {
   return {
     items, 
     modelItems,
+    selectionFailed,
     fetchMediaItem, 
     fetchMediaItems, 
     addItemToSet, 
@@ -428,11 +354,9 @@ export const useItemStore = defineStore('item', () => {
     isItemInSubmitted,
     getSetItems,
     fetchItemInfo,
-    fetchGroupInfo,
     fetchRelatedItems,
     setSelectedItem,
     getSelectedGroup,
     getSelectedItem,
-    abortAllPending,
   }
 })

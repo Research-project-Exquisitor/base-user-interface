@@ -20,6 +20,7 @@ export interface GroupMetadata {
   src: string,
   groupMediaType: MediaType,
   items: number[],
+  itemsLoaded?: boolean, // false/undefined while related item IDs are being fetched
   metadata: Record<string, number | string | (number | string)[]>
 }
 

@@ -35,6 +35,13 @@ export const useFilterStore = defineStore('filter', () => {
     return mainItemTagsets.includes(key) || mainGroupTagsets.includes(key)
   }
 
+  // Tagset IDs for the given tagset names in a collection, skipping names it doesn't have
+  function tagsetIds(collection: string, names: string[]): number[] {
+    const nameIds = filterNameIdMap.get(collection)
+    if (!nameIds) return []
+    return names.map(n => nameIds.get(n)).filter((id): id is number => id !== undefined)
+  }
+
   function isGroup(key: string) : boolean {
     return mainGroupTagsets.includes(key) || otherGroupTagsets.includes(key)
   }
@@ -181,6 +188,7 @@ export const useFilterStore = defineStore('filter', () => {
     filtersLoaded,
     filtersInfo,
     filterNameIdMap,
+    tagsetIds,
     mainItemTagsets,
     otherItemTagsets,
     mainGroupTagsets,

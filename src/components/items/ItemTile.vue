@@ -212,33 +212,20 @@ const borderClass = computed(() => {
 
 
 const mdRef = ref<Record<string, any> | null>(null)
-const mdLoading = ref(false)
 
-watchEffect(async () => {
-  // only fetch when we have an item and it lacks metadata we need
-  if (!props.item) return
-
-  // if metadata has already been fetched (even if the dataset has no time fields),
-  // use whatever was returned and stop — prevents infinite re-fetch on image-only datasets
-  const md = props.item.metadata
-  if (md != null) {
-    mdRef.value = md
-    return
-  }
-
-  if (mdLoading.value) return
-  mdLoading.value = true
-  try {
-    const fetched = await itemStore.fetchItemInfo(props.modelId, props.itemId)
-    // IMPORTANT: store it locally so computed stays sync
-    mdRef.value = fetched ?? {}
-    // Optional (recommended): also merge into the item so other parts see it
-    if (props.item.metadata == null) props.item.metadata = {}
-    Object.assign(props.item.metadata, mdRef.value)
-  } finally {
-    mdLoading.value = false
-  }
+// Metadata (shot times) is loaded on demand, on first hover for the preview or on submit.
+// Fetching it for every tile on mount floods the server with details calls.
+watchEffect(() => {
+  const md = props.item?.metadata
+  if (md != null) mdRef.value = md
 })
+
+function loadMetadataForPreview() {
+  if (mdRef.value || !props.item || props.enableHoverPreview === false) return
+  itemStore.fetchItemInfo(props.modelId, props.itemId)
+    .then((md) => { mdRef.value = md })
+    .catch((err) => useErrorStore().show(err))
+}
 
 const segment = computed(() => {
   const md: any = mdRef.value ?? props.item?.metadata ?? {}
@@ -266,28 +253,32 @@ const MIDPOINT_HALF_WINDOW_MS = 1000
 const submitting = ref(false)
 
 async function submit() {
-  const md: any = mdRef.value ?? props.item?.metadata ?? {}
-  const name = md['Video ID'] ?? ''
-  const { isSegment, startMs, endMs } = segment.value
-  if (!name || !isSegment || startMs == null || endMs == null) {
-    useErrorStore().show(`Cannot submit item ${props.itemId}: missing Video ID or Start/End (ms).`)
-    return
-  }
-
-  let start = startMs
-  let end = endMs
-  if (endMs - startMs > LONG_SHOT_MS) {
-    const mid = (startMs + endMs) / 2
-    start = mid - MIDPOINT_HALF_WINDOW_MS
-    end = mid + MIDPOINT_HALF_WINDOW_MS
-  }
-
-  start = Math.round(start)
-  end = Math.round(end)
-
   submitting.value = true
   try {
     // Errors propagate to the global errorHandler, which shows the error dialog
+
+    // Tiles without hover preview skip metadata until now (store caches and dedupes)
+    if (!mdRef.value) mdRef.value = await itemStore.fetchItemInfo(props.modelId, props.itemId)
+
+    const md: any = mdRef.value
+    const name = md['Video ID'] ?? ''
+    const { isSegment, startMs, endMs } = segment.value
+    if (!name || !isSegment || startMs == null || endMs == null) {
+      useErrorStore().show(`Cannot submit item ${props.itemId}: missing Video ID or Start/End (ms).`)
+      return
+    }
+
+    let start = startMs
+    let end = endMs
+    if (endMs - startMs > LONG_SHOT_MS) {
+      const mid = (startMs + endMs) / 2
+      start = mid - MIDPOINT_HALF_WINDOW_MS
+      end = mid + MIDPOINT_HALF_WINDOW_MS
+    }
+
+    start = Math.round(start)
+    end = Math.round(end)
+
     const result = await submitAnswer({
       session_info: {
         session: appStore.session,
@@ -313,7 +304,6 @@ async function submit() {
  * - Else if the group is a video => groupInfo.src
  */
 const videoSrc = computed<string | null>(() => {
-  console.log(props.groupInfo)
   if (!props.item) return null
 
   if (props.item.mediaType === MediaType.Video && props.item.srcPath) {
@@ -414,7 +404,8 @@ function stopPreview() {
 
 function onEnter() {
   hovering.value = true
-  // Try immediately; if item/group src becomes available while hovering, watcher below starts it.
+  loadMetadataForPreview()
+  // Try immediately. If metadata or the src arrive while still hovering, the watcher below starts it.
   playPreview()
 }
 

@@ -4,7 +4,7 @@
 export { getMainURI } from './http'
 export { initSession, initModel, removeModel, getCollections } from './sessionApi'
 export { searchRF, searchText, searchImage, searchTemporal, searchQueryRewrite } from './searchApi'
-export { getItem, getItemInfo, getRelatedItems } from './itemApi'
+export { getItem, getRelatedItems } from './itemApi'
 export { getFiltersInfo, getFilterValues } from './filterApi'
 export { excludeGroup, isGroupExcluded } from './excludeApi'
 export { logEvents } from './logApi'

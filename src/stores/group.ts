@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { defineStore } from 'pinia'
+import { reactive } from 'vue'
 import { useFilterStore } from '@/stores/filter'
-import { useItemStore } from '@/stores/item'
 import { useAppStore } from '@/stores/app'
-import { getItemInfo } from "@/services/ExquisitorAPI";
+import { getItem } from '@/services/ExquisitorAPI'
 import type { GroupMetadata } from '@/types/mediaitem'
 
 
@@ -12,113 +12,58 @@ function key(collection: string, groupId: number) {
   return `${collection}:${groupId}`
 }
 
+// Single cache of group (video) info, shared by the result grid and the media viewer
 export const useGroupStore = defineStore('group', () => {
   const filterStore = useFilterStore()
-  const itemStore = useItemStore()
   const appStore = useAppStore()
 
-  // Cache: collection+groupId -> GroupMetadata
-  const groupMetadata = shallowReactive(new Map<string, GroupMetadata>())
-
-  // Cache: collection -> filter ids needed for group metadata
-  const groupFilterIdsByCollection = shallowReactive(new Map<string, number[]>())
+  // Cache of collection+groupId to GroupMetadata.
+  // Deep reactive because related items are filled in after the group loads.
+  const groupMetadata = reactive(new Map<string, GroupMetadata>())
+  const inflight = new Map<string, Promise<GroupMetadata>>()
 
   function get(collection: string, groupId: number): GroupMetadata | null {
     return groupMetadata.get(key(collection, groupId)) ?? null
   }
 
-  function computeGroupFilterIds(collection: string): number[] {
-    const mainTagsets = filterStore.mainGroupTagsets
-    const otherTagsets = filterStore.otherGroupTagsets
-    const nameIdMap = filterStore.filterNameIdMap.get(collection)
-
-    const ids: number[] = []
-    if (!nameIdMap) return ids
-
-    for (const name of mainTagsets) {
-      const id = nameIdMap.get(name)
-      if (id != null) ids.push(id)
-    }
-    for (const name of otherTagsets) {
-      const id = nameIdMap.get(name)
-      if (id != null) ids.push(id)
-    }
-    return ids
-  }
-
-  function getGroupFilterIds(collection: string): number[] {
-    const cached = groupFilterIdsByCollection.get(collection)
-    if (cached) return cached
-    const ids = computeGroupFilterIds(collection)
-    groupFilterIdsByCollection.set(collection, ids)
-    return ids
-  }
-
   /**
-   * Fetch group info + metadata for a (collection, groupId).
-   *
-   * IMPORTANT FUTURE UPDATE:
-   * - When backend supports batch group info, add:
-   *   ensureGroups(collection, groupIds[]) that fills groupMetadata with one call.
-   * - When backend supports batch item info, replace getItemInfo(...) calls similarly.
+   * Fetch group info and metadata for a (collection, groupId) in one /item/info call.
+   * Concurrent callers share the same request.
    */
-  async function fetchGroupInfo(collection: string, groupId: number, modelIdForSessionContext?: number): Promise<GroupMetadata> {
+  function fetchGroupInfo(collection: string, groupId: number, modelId: number): Promise<GroupMetadata> {
     const k = key(collection, groupId)
     const existing = groupMetadata.get(k)
-    if (existing) return existing
+    if (existing) return Promise.resolve(existing)
 
-    // Initialize base entry. Your existing logic treats groupId as a MediaItem.
-    // Keep it, but it's now centralized here.
-    // NOTE: This requires modelId to correctly resolve session/model context in fetchMediaItem.
-    // If your API can fetch group MediaItem without modelId, update itemStore accordingly.
-    if (modelIdForSessionContext == null) {
-      throw new Error('fetchGroupInfo requires modelIdForSessionContext to fetch base group media info.')
+    let p = inflight.get(k)
+    if (!p) {
+      const filterIds = filterStore.tagsetIds(collection, [...filterStore.mainGroupTagsets, ...filterStore.otherGroupTagsets])
+      p = getItem(appStore.session, groupId, modelId, collection, { filterIds })
+        .then((info) => {
+          groupMetadata.set(k, {
+            src: info.srcPath,
+            groupMediaType: info.mediaType,
+            items: [],
+            metadata: info.metadata ?? {}
+          })
+          return groupMetadata.get(k)!
+        })
+        .finally(() => inflight.delete(k))
+      inflight.set(k, p)
     }
-
-    const groupInfo = await itemStore.fetchMediaItem(groupId, modelIdForSessionContext)
-
-    const base: GroupMetadata = {
-      src: groupInfo.srcPath,
-      groupMediaType: groupInfo.mediaType,
-      items: [],
-      metadata: {}
-    }
-    groupMetadata.set(k, base)
-
-    // Fetch metadata
-    const group_filter_ids = getGroupFilterIds(collection)
-
-    // TODO (future batch endpoint): replace this per-group call with a batched getItemInfo for many groupIds.
-    const metadata = await getItemInfo(appStore.session, modelIdForSessionContext, groupId, collection, group_filter_ids)
-    if (!metadata || Object.keys(metadata).length === 0) {
-      return base
-    }
-
-    // Keep only configured tagsets
-    for (const tag of filterStore.mainGroupTagsets) {
-      if (metadata[tag] !== undefined) base.metadata[tag] = metadata[tag]
-    }
-    for (const tag of filterStore.otherGroupTagsets) {
-      if (metadata[tag] !== undefined) base.metadata[tag] = metadata[tag]
-    }
-
-    return base
+    return p
   }
 
   /**
    * Prefetch many groups (used by ResultGrid).
-   *
-   * IMPORTANT FUTURE UPDATE:
-   * Replace Promise.all with ONE API call once you add:
-   * - group/info/batch (or similar)
+   * TODO (future batch endpoint) Replace Promise.all with one call for all groupIds.
    */
-  async function fetchGroupsInfo(collection: string, groupIds: number[], modelIdForSessionContext: number) {
+  async function fetchGroupsInfo(collection: string, groupIds: number[], modelId: number) {
     const unique = Array.from(new Set(groupIds)).filter((g) => g != null && g !== -1)
     const missing = unique.filter((g) => !groupMetadata.has(key(collection, g)))
     if (missing.length === 0) return
 
-    // TODO (future batch endpoint): one request here.
-    await Promise.all(missing.map((g) => fetchGroupInfo(collection, g, modelIdForSessionContext)))
+    await Promise.all(missing.map((g) => fetchGroupInfo(collection, g, modelId)))
   }
 
   return {

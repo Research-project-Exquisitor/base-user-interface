@@ -189,8 +189,6 @@ onMounted(() => {
   // }
 })
 
-const selectedMediaGroupIndex = ref<number | null>(null)
-// const selectedMediaGroup = ref<string | null>(null)
 const rf = ref(false)
   
 function updateResultIdsChat(resultIds: number[]) {
@@ -210,13 +208,12 @@ function updateResultIdsTemporal(resultIds: number[]) {
 }
 
 async function updateSelectedItem (itemId: number) {
-  await itemStore.setSelectedItem(itemId)
-  const group = itemStore.getSelectedItem().groupId!
-  if (selectedMediaGroupIndex.value !== group) {
-    selectedMediaGroupIndex.value = group
-    showMedia.value = false
-  }
+  // The item is selected right away and its video loads in the background.
+  // Open the panel now so it doesn't look like the page is hanging.
+  const loading = itemStore.setSelectedItem(itemId)
   showMedia.value = true
+  // Awaited so load errors still reach the global error handler
+  await loading
 }
   
 function updateModel() {

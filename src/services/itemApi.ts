@@ -10,52 +10,48 @@ export const getItem = async (
     exqId: number,
     modelId: number,
     collection: string,
-    opts?: { signal?: AbortSignal }
+    opts?: { filterIds?: number[], signal?: AbortSignal }
 ): Promise<MediaItem> => {
-    if (mock) return mockGetItem(exqId, modelId)
+    const filterIds = opts?.filterIds ?? []
+    if (mock) {
+        const item = await mockGetItem(exqId, modelId)
+        if (filterIds.length > 0) item.metadata = await getItemInfoMock(exqId)
+        return item
+    }
     const sets = new Map<number, boolean[]>()
     sets.set(modelId, [false, false, false, false])
-    const resp: ExqGetItemResponse = await post('/exq/item/base', {
+    const resp: ExqGetItemResponse = await post('/exq/item/info', {
         session_info: { session, modelId, collection },
         mediaId: exqId,
+        filterIds,
     }, opts?.signal)
     return {
         id: resp.id,
         name: resp.name,
-        itemId: resp.itemId,
+        itemId: resp.mediaId,
         currentSets: sets,
         groupId: resp.groupId,
         mediaType: resp.mediaType,
         thumbPath: resp.thumbPath,
         srcPath: resp.srcPath,
+        ...(resp.metadata && { metadata: resp.metadata }),
     }
-}
-
-export const getItemInfo = async (
-    session: string,
-    model: number,
-    mediaId: number,
-    collection: string,
-    filterIds: number[]
-): Promise<Record<string, number | string | (number | string)[]>> => {
-    if (mock) return getItemInfoMock(mediaId)
-    return post('/exq/item/details', {
-        session_info: { session, modelId: model, collection },
-        mediaId,
-        filterIds,
-    })
 }
 
 export const getRelatedItems = async (
     session: string,
     model: number,
     mediaId: number,
-    collection: string
+    collection: string,
+    // Tagset ID to order by, such as Start (ms). The server returns them unsorted if omitted
+    sortBy?: number,
+    sortOrder: 'asc' | 'desc' = 'asc'
 ): Promise<number[]> => {
     if (mock) return [10, 20, 30, 40, 50]
     const resp: { related: number[] } = await post('/exq/item/related', {
         session_info: { session, modelId: model, collection },
         mediaId,
+        ...(sortBy !== undefined && { sortBy, sortOrder }),
     })
     return resp.related
 }

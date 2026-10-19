@@ -27,7 +27,7 @@
       <MediaMetadataPopover
        :model-id="activeModelId"
        :item="selectedItem"
-       :group="selectedGroup"
+       :group="selectedGroup ?? null"
        :filename="filename"
        :is-main-key="filterStore.isMain"
        :is-group-key="filterStore.isGroup"
@@ -75,19 +75,27 @@
          ref="videoPlayer"
          :data-eid="eid('video_player')"
          :data-looping="loopSegment ? '1' : '0'"
-         :key="(selectedGroup?.src ?? '') + '-video-player'"
-         :src="selectedGroup.src"
          :poster="selectedItem.thumbPath"
          controls
          autoplay
          muted
          @loadedmetadata="onLoadedMetadata"
+         @loadeddata="settleVideo"
          @timeupdate="onTimeUpdate"
          class="viewer-video"
         >
           Your browser does not support the video tag.
         </video>
       </template>
+
+      <!-- Show the keyframe while the selected item's video is loading -->
+      <div v-else-if="selectedItem && !selectedGroup" class="viewer-loading" :data-eid="eid('loading')">
+        <v-img :src="selectedItem.thumbPath" :aspect-ratio="16 / 9" />
+        <div v-if="itemStore.selectionFailed" class="text-caption text-error mt-1" :data-eid="eid('load_failed')">
+          Couldn't load this video.
+        </div>
+        <v-progress-linear v-else indeterminate color="indigo" />
+      </div>
 
       <AlbumViewer
         v-else-if="selectedItem && selectedItem.mediaType === MediaType.Image"
@@ -142,33 +150,22 @@
       </div> 
 
       <!-- Related summary -->
-      <div v-if="selectedItem && selectedGroup" class="related-block" :data-eid="eid('related_block')">
+      <div v-if="selectedItem && selectedGroup && showRelated" class="related-block" :data-eid="eid('related_block')">
         <RelatedItemsGrid
          :data-eid="eid('related_grid')"
          :model-id="activeModelId"
          :media-item="selectedItem"
          :related-items="selectedGroup.items"
+         :loading="!selectedGroup.itemsLoaded"
          @select-item="updateSelected"
         />
       </div> 
     </v-card-text>
-
-    <v-snackbar
-     v-model="snackbar"
-     :timeout="snackTimeout"
-     location="bottom left"
-     :color="snackColor"
-    >
-      {{ text }}
-      <template #actions>
-        <v-btn variant="text" @click="snackbar=false" icon="mdi-close" />
-      </template>
-    </v-snackbar>
   </v-card>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AlbumViewer from './AlbumViewer.vue'
 import AudioPlayer from './AudioPlayer.vue'
 import RelatedItemsGrid from './RelatedItemsGrid.vue'
@@ -223,14 +220,6 @@ const loopSegment = ref(true)
 const videoPlayer = ref<HTMLVideoElement | null>(null)
 const currentTime = ref(0)
 
-const lastVideoSrc = ref<string | null>(null)
-
-// snackbar
-const snackbar = ref(false)
-const snackTimeout = ref(4000)
-const snackColor = ref('white')
-const text = ref('')
-
 const isExcluded = computed(() => {
   const modelId = modelStore.activeModel!.id
 
@@ -275,22 +264,86 @@ function teardownVideo(hard = false) {
   vid.pause()
 
   if (hard) {
-    // when changing to a different video file
+    // stop downloading the old file when changing to a different video
     vid.removeAttribute('src')
     vid.load()
   }
 }
 
-function seekToSegmentStart() {
+// --- video loading ---
+// src is set here rather than bound in the template, so a new video can start
+// directly at the shot (media fragment) and a shot change in the same video only seeks
+const lastVideoSrc = ref<string | null>(null)
+
+const startSec = computed(() => (segment.value.hasSegment ? segment.value.startMs / 1000 : 0))
+
+function syncVideo() {
   const vid = videoPlayer.value
-  if (!vid || !segment.value.hasSegment) return
-  const startSec = segment.value.startMs / 1000
-  vid.fastSeek?.(startSec)
-  if (!vid.fastSeek) vid.currentTime = startSec
+  const src = selectedGroup.value?.src
+  if (!vid || !src || !isGroupVideo.value) return
+
+  if (lastVideoSrc.value !== src) {
+    // For a new video, #t= makes the browser fetch from the shot's position
+    // instead of loading from 0 and then seeking
+    lastVideoSrc.value = src
+    vid.src = startSec.value > 0 ? `${src}#t=${startSec.value}` : src
+    vid.load()
+  } else if (segment.value.hasSegment && Math.abs(vid.currentTime - startSec.value) > 0.25) {
+    // Same video but another shot, so just seek
+    vid.currentTime = startSec.value
+    void vid.play().catch(() => {})
+  }
 }
 
+// Runs after render so the <video> element exists. startMs is included because a
+// related shot's metadata can arrive after it was selected
+watch(
+  () => [selectedGroup.value?.src, selectedItem.value?.id, segment.value.startMs] as const,
+  syncVideo,
+  { flush: 'post' }
+)
+onMounted(syncVideo)
+
+// The related grid (its requests and thumbnails) waits until the video's first
+// frame at the shot has loaded, so it doesn't compete with the video.
+// Fallback in case the video never loads.
+const RELATED_FALLBACK_MS = 3000
+const videoSettled = ref(false)
+let settleTimer: number | undefined
+
+function settleVideo() {
+  videoSettled.value = true
+  window.clearTimeout(settleTimer)
+}
+
+function awaitVideoSettle() {
+  videoSettled.value = false
+  window.clearTimeout(settleTimer)
+  settleTimer = window.setTimeout(settleVideo, RELATED_FALLBACK_MS)
+}
+
+const showRelated = computed(() => !isGroupVideo.value || videoSettled.value)
+
+// Pre-flush, so the old <video> still exists when switching away from it
+watch(
+  () => selectedGroup.value?.src,
+  (src, oldSrc) => {
+    if (src === oldSrc) return
+    if (oldSrc) {
+      teardownVideo(true)
+      lastVideoSrc.value = null
+    }
+    if (src) awaitVideoSettle()
+  },
+  { immediate: true }
+)
+
 function onLoadedMetadata() {
-  seekToSegmentStart()
+  // Fallback for browsers that ignore the #t= fragment
+  const vid = videoPlayer.value
+  if (vid && segment.value.hasSegment && Math.abs(vid.currentTime - startSec.value) > 0.5) {
+    vid.currentTime = startSec.value
+  }
 
   if (selectedItem.value && selectedGroup.value) {
     logEvents([{
@@ -300,7 +353,7 @@ function onLoadedMetadata() {
       data: JSON.stringify({
         itemId: selectedItem.value.id,
         vid: selectedGroup.value.src,
-        seek_second: segment.value.hasSegment ? segment.value.startMs / 1000 : 0
+        seek_second: startSec.value
       })
     }])
   }
@@ -314,60 +367,20 @@ function onTimeUpdate() {
 
   if (!loopSegment.value || !segment.value.hasSegment) return
 
-  const startSec = segment.value.startMs / 1000
   const endSec = segment.value.endMs / 1000
 
-  if (vid.currentTime > endSec) vid.currentTime = startSec
-  if (vid.currentTime < startSec) vid.currentTime = startSec
+  if (vid.currentTime > endSec) vid.currentTime = startSec.value
+  if (vid.currentTime < startSec.value) vid.currentTime = startSec.value
 }
 
 function updateSelected(itemId?: number) {
-  if (typeof itemId === 'number') itemStore.setSelectedItem(itemId)
+  if (typeof itemId === 'number') void itemStore.setSelectedItem(itemId)
 }
 
-watch(
-  () => [selectedGroup.value?.src, selectedItem.value?.id] as const,
-  async ([src, id]) => {
-    if (!src || !isGroupVideo.value) return
-
-    const vid = videoPlayer.value
-    if (!vid) return
-
-    const isNewVideo = lastVideoSrc.value !== src
-
-    if (isNewVideo) {
-      // Hard reset only when switching to a different video src
-      teardownVideo(true)
-
-      // Ensure src is set (defensive, because we may have removed it)
-      // Even though Vue binds :src, this prevents the "unchanged src" case
-      vid.src = src
-      vid.load()
-
-      lastVideoSrc.value = src
-    }
-
-    // Seek when ready
-    await nextTick()
-    const seekNow = () => {
-      if (segment.value.hasSegment) {
-        const startSec = segment.value.startMs / 1000
-        vid.currentTime = startSec
-      }
-      // resume playback so it doesn't appear frozen
-      void vid.play().catch(() => {})
-    }
-
-    if (vid.readyState >= 1) {
-      seekNow()
-    } else {
-      vid.addEventListener('loadedmetadata', seekNow, { once: true })
-    }
-  },
-  { immediate: true }
-)
-
-onUnmounted(() => teardownVideo())
+onUnmounted(() => {
+  window.clearTimeout(settleTimer)
+  teardownVideo()
+})
 
 const emit = defineEmits<{ (e: 'closeMediaViewer'): void }>()
 
@@ -378,13 +391,6 @@ function closeViewer() {
 
 async function submitCurrent() {
   if (!selectedItem.value) return
-
-  if (useAppStore().selectedEvaluation.id === '') {
-    snackbar.value = true
-    snackColor.value = 'error'
-    text.value = 'EvaluationId is not set!'
-    return
-  }
 
   const start = Math.round(currentTime.value * 1000)
   const end = Math.round((currentTime.value+2) * 1000)

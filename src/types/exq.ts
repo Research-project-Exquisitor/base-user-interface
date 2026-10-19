@@ -88,14 +88,17 @@ export interface ExqTemporalSearchRequest {
 }
 
 
+// /exq/item/info
 export interface ExqGetItemResponse {
   id: number
   name: string
-  itemId: number
+  mediaId: number
   mediaType: MediaType
   thumbPath: string
   srcPath: string
   groupId?: number
+  // Only present when filterIds were sent, keyed by tagset name
+  metadata?: Record<string, number | string | (number | string)[]>
 }
 
 export interface ExqGetFiltersInfoResponse {

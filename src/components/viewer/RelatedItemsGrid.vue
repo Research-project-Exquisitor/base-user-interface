@@ -6,8 +6,15 @@
     <div class="related-header" :data-eid="eid('header')">
       <div class="d-flex align-center ga-2">
         <div class="text-subtitle-2 font-weight-bold">Related</div>
-        <v-chip :data-eid="eid('count')" size="x-small" label variant="outlined">
-          {{ allItems.length }}
+        <v-progress-circular
+         v-if="loading"
+         :data-eid="eid('count_loading')"
+         indeterminate
+         size="14"
+         width="2"
+        />
+        <v-chip v-else :data-eid="eid('count')" size="x-small" label variant="outlined">
+          {{ allIds.length }}
         </v-chip>
       </div>
 
@@ -17,7 +24,7 @@
          variant="outlined"
          size="small"
          @click="dialogOpen = true"
-         :disabled="allItems.length === 0"
+         :disabled="allIds.length === 0"
         >
           Open
         </v-btn>
@@ -44,21 +51,21 @@
     <div
       class="preview-wrap"
       :data-eid="eid('preview_wrap')"
-      v-if="summaryItems.length > 0"
+      v-if="summaryIds.length > 0"
     >
       <div class="preview-grid" :data-eid="eid('preview_grid')">
         <div
-         v-for="it in summaryItems"
-         :key="it.id"
+         v-for="id in summaryIds"
+         :key="id"
          class="preview-cell"
-         :class="{ 'preview-cell--selected': it.id === selectedId }"
-         :data-eid="eid(`preview_cell_${it.id}`)"
+         :class="{ 'preview-cell--selected': id === selectedId }"
+         :data-eid="eid(`preview_cell_${id}`)"
         >
           <ItemTile
-           :data-eid="eid(`itemtile_${it.id}`)"
-           :item-id="it.id"
+           :data-eid="eid(`itemtile_${id}`)"
+           :item-id="id"
            :model-id="modelId"
-           :item="it"
+           :item="itemFor(id)"
            :group-info="null"
            :tile-width="tileWidth"
            :aspect-ratio="aspectRatio"
@@ -66,16 +73,20 @@
            :btn-neg="true"
            :btn-submit="true"
            :show-remove="true"
-           :remove-set="itemStore.isItemInPos(it.id, props.modelId) ? ILSets.Positives : itemStore.isItemInNeg(it.id, props.modelId) ? ILSets.Negatives : null"
+           :remove-set="itemStore.isItemInPos(id, props.modelId) ? ILSets.Positives : itemStore.isItemInNeg(id, props.modelId) ? ILSets.Negatives : null"
            :history-enabled="false"
            :enable-hover-preview="false"
-           @open="onSelect(it.id)"
+           @open="onSelect(id)"
            @add="onAdd"
            @remove="onRemove"
           />
         </div>
       </div>
     </div> 
+
+    <div v-else-if="loading" class="related-loading" :data-eid="eid('loading')">
+      <v-progress-circular indeterminate color="indigo" />
+    </div>
 
     <div v-else class="empty" :data-eid="eid('empty')">
       No related items.
@@ -88,7 +99,7 @@
           <div class="d-flex align-center ga-2">
             <div class="text-subtitle-1 font-weight-bold">Related items</div>
             <v-chip size="x-small" label variant="outlined" :data-eid="eid('dialog_count')">
-              {{ allItems.length }}
+              {{ allIds.length }}
             </v-chip>
           </div>
 
@@ -114,13 +125,13 @@
               <v-slider
                v-model="dialogCount"
                :data-eid="eid('dialog_slider')"
-               :min="Math.min(100, allItems.length || 100)"
-               :max="Math.max(100, allItems.length || 100)"
+               :min="Math.min(100, allIds.length || 100)"
+               :max="Math.max(100, allIds.length || 100)"
                :step="10"
                hide-details
                thumb-label="always"
                density="compact"
-               :disabled="allItems.length <= 100"
+               :disabled="allIds.length <= 100"
               />
 
               <v-checkbox
@@ -129,12 +140,12 @@
                hide-details
                density="compact"
                label="All"
-               :disabled="allItems.length <= 100"
+               :disabled="allIds.length <= 100"
               />
             </div>
 
             <div class="text-caption opacity-70">
-              Showing: {{ dialogVisibleCount }} / {{ allItems.length }}
+              Showing: {{ dialogVisibleCount }} / {{ allIds.length }}
             </div>
           </div>
 
@@ -146,20 +157,24 @@
            height="70vh"
           >
             <template #default="{ item: row, index }">
-              <div class="dialog-row" :data-eid="eid(`dialog_row_${index}`)">
+              <div
+               v-intersect="(visible: boolean) => visible && ensureLoaded(row)"
+               class="dialog-row"
+               :data-eid="eid(`dialog_row_${index}`)"
+              >
                 <div class="dialog-row-grid">
                   <div
-                   v-for="it in row"
-                   :key="it.id"
+                   v-for="id in row"
+                   :key="id"
                    class="dialog-cell"
-                   :class="{ 'dialog-cell--selected': it.id === selectedId }"
-                   :data-eid="eid(`dialog_cell_${it.id}`)"
+                   :class="{ 'dialog-cell--selected': id === selectedId }"
+                   :data-eid="eid(`dialog_cell_${id}`)"
                   >
                     <ItemTile
-                     :data-eid="eid(`dialog_itemtile_${it.id}`)"
-                     :item-id="it.id"
+                     :data-eid="eid(`dialog_itemtile_${id}`)"
+                     :item-id="id"
                      :model-id="modelId"
-                     :item="it"
+                     :item="itemFor(id)"
                      :group-info="null"
                      :tile-width="dialogTileWidth"
                      :aspect-ratio="aspectRatio"
@@ -167,10 +182,10 @@
                      :btn-neg="true"
                      :btn-submit="true"
                      :show-remove="true"
-                     :remove-set="itemStore.isItemInPos(it.id, props.modelId) ? ILSets.Positives : itemStore.isItemInNeg(it.id, props.modelId) ? ILSets.Negatives : null"
+                     :remove-set="itemStore.isItemInPos(id, props.modelId) ? ILSets.Positives : itemStore.isItemInNeg(id, props.modelId) ? ILSets.Negatives : null"
                      :history-enabled="false"
                      :enable-hover-preview="false"
-                     @open="onSelect(it.id)"
+                     @open="onSelect(id)"
                      @add="onAdd"
                      @remove="onRemove"
                     />
@@ -195,10 +210,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import ItemTile from '@/components/items/ItemTile.vue'
 import { useItemStore } from '@/stores/item'
 import { useModelStore } from '@/stores/model'
+import { useErrorStore } from '@/stores/error'
 import type MediaItem from '@/types/mediaitem'
 import { ILSets } from '@/types/mediaitem'
 
@@ -206,6 +222,7 @@ const props = defineProps<{
   modelId: number
   mediaItem: MediaItem
   relatedItems: number[]          // ids
+  loading?: boolean               // related IDs still being fetched
 }>()
 
 const emit = defineEmits<{
@@ -225,7 +242,8 @@ const collection = computed(() => modelStore.getModelCollection(props.modelId))
 const dialogOpen = ref(false)
 
 const summaryMax = 100
-const summaryCount = ref(60)
+// Start at the minimum because long videos have 1000+ shots and every tile costs requests
+const summaryCount = ref(20)
 
 const dialogAll = ref(false)
 const dialogCount = ref(200)
@@ -234,19 +252,32 @@ const tileWidth = 170
 const dialogTileWidth = 200
 const aspectRatio = 16 / 9
 
-const itemsMap = ref<Map<number, MediaItem>>(new Map())
+// Related IDs arrive from the server already in time order (sorted by Start/Keyframe ms)
+const allIds = computed(() => props.relatedItems)
 
-function getTimeMs(it: MediaItem): number {
-  const md: any = it.metadata ?? {}
-  const toNum = (v: any) => (typeof v === 'string' ? Number(v) : v)
+// Items come from the store cache and are null until loaded (the tile shows a skeleton)
+function itemFor(id: number): MediaItem | null {
+  return itemStore.items.get(collection.value)?.get(id) ?? null
+}
 
-  const s = toNum(md['Start (ms)'])
-  if (typeof s === 'number' && Number.isFinite(s)) return s
+// One controller per video. Switching video (or closing the viewer) cancels
+// everything still queued or running for the old one
+let loadCtrl = new AbortController()
 
-  const k = toNum(md['Keyframe (ms)'])
-  if (typeof k === 'number' && Number.isFinite(k)) return k
+watch(allIds, () => {
+  loadCtrl.abort()
+  loadCtrl = new AbortController()
+})
 
-  return 0
+onBeforeUnmount(() => loadCtrl.abort())
+
+// Fetches base info for IDs not cached yet. The store dedupes and caps concurrency
+function ensureLoaded(ids: number[]) {
+  if (ids.length === 0) return
+  itemStore.fetchMediaItems(ids, props.modelId, collection.value, loadCtrl.signal)
+    .catch((err) => {
+      if (err?.name !== 'AbortError') useErrorStore().show(err)
+    })
 }
 
 function onAdd(payload: { itemId: number; set: ILSets }) {
@@ -257,70 +288,47 @@ function onRemove(payload: { itemId: number; set: ILSets }) {
   itemStore.removeItemFromSet(payload.itemId, props.modelId, payload.set)
 }
 
-async function loadAllRelated(ids: number[]) {
-  if (!ids || ids.length === 0) {
-    itemsMap.value = new Map()
-    return
-  }
-
-  // Fetch via cache-aware store
-  const fetched = await itemStore.fetchMediaItems(ids, props.modelId, collection.value)
-  const m = new Map<number, MediaItem>()
-  for (const it of fetched) m.set(it.id, it)
-  itemsMap.value = m
-}
-
-watch(
-  () => props.relatedItems,
-  (ids) => { void loadAllRelated(ids ?? []) },
-  { immediate: true }
-)
-
-const allItems = computed(() => {
-  const arr = Array.from(itemsMap.value.values())
-  arr.sort((a, b) => getTimeMs(a) - getTimeMs(b))
-  return arr
-})
-
 const selectedId = computed(() => props.mediaItem?.id ?? -1)
 
 // --- Summary sampling (cap 100) ---
-function sampleEvenly<T>(arr: T[], k: number): T[] {
-  const n = arr.length
-  if (n === 0) return []
-  if (k >= n) return arr.slice()
 
-  if (k <= 1) return [arr[Math.floor((n - 1) / 2)]]
+// k evenly spaced indices over 0..n-1, always including both ends
+function sampleIndices(n: number, k: number): number[] {
+  if (n === 0 || k <= 0) return []
+  if (k >= n) return Array.from({ length: n }, (_, i) => i)
+  if (k === 1) return [Math.floor((n - 1) / 2)]
 
   const idxs = new Set<number>()
   for (let i = 0; i < k; i++) {
-    const idx = Math.round((i * (n - 1)) / (k - 1))
-    idxs.add(idx)
+    idxs.add(Math.round((i * (n - 1)) / (k - 1)))
   }
-  return Array.from(idxs).sort((a, b) => a - b).map(i => arr[i])
+  return Array.from(idxs).sort((a, b) => a - b)
 }
 
-const summaryItems = computed(() => {
-  const arr = allItems.value
-  if (arr.length === 0) return []
+// Sampled from the stable ID list, so loading data never changes which shots are shown
+const summaryIds = computed(() => {
+  const ids = allIds.value
+  const k = Math.min(summaryCount.value, summaryMax, ids.length)
+  const idxs = sampleIndices(ids.length, k)
 
-  const k = Math.min(summaryCount.value, summaryMax, arr.length)
-  let sampled = sampleEvenly(arr, k)
-
-  // Ensure selected item is included
-  const sid = selectedId.value
-  if (sid !== -1 && !sampled.some(x => (x as any).id === sid)) {
-    const found = arr.find(x => x.id === sid)
-    if (found) {
-      sampled = sampled.slice()
-      sampled.push(found)
-      sampled.sort((a, b) => getTimeMs(a) - getTimeMs(b))
-      // keep within cap by dropping farthest in time from selected
-      if (sampled.length > summaryMax) sampled = sampled.slice(sampled.length - summaryMax)
+  // Ensure the selected item is included. At the cap it replaces the nearest sampled shot
+  const sel = ids.indexOf(selectedId.value)
+  if (sel !== -1 && !idxs.includes(sel)) {
+    if (idxs.length < summaryMax) {
+      idxs.push(sel)
+    } else {
+      let nearest = 0
+      for (let i = 1; i < idxs.length; i++) {
+        if (Math.abs(idxs[i] - sel) < Math.abs(idxs[nearest] - sel)) nearest = i
+      }
+      idxs[nearest] = sel
     }
+    idxs.sort((a, b) => a - b)
   }
-  return sampled
+  return idxs.map(i => ids[i])
 })
+
+watch(summaryIds, ensureLoaded, { immediate: true })
 
 function onSelect(id: number) {
   emit('select-item', id)
@@ -328,32 +336,26 @@ function onSelect(id: number) {
 
 // --- Dialog visible count + virtual rows ---
 const dialogVisibleCount = computed(() => {
-  if (dialogAll.value) return allItems.value.length
-  return Math.min(dialogCount.value, allItems.value.length)
+  if (dialogAll.value) return allIds.value.length
+  return Math.min(dialogCount.value, allIds.value.length)
 })
 
-const dialogItems = computed(() => {
-  const arr = allItems.value
-  const n = dialogVisibleCount.value
-  return arr.slice(0, n)
-})
-
-// chunk into rows
+// Chunk into rows. Each row loads its items when scrolled into view (v-intersect)
 const dialogCols = 5
 const dialogRowHeight = 190
 
 const dialogRows = computed(() => {
-  const rows: MediaItem[][] = []
-  const arr = dialogItems.value
-  for (let i = 0; i < arr.length; i += dialogCols) {
-    rows.push(arr.slice(i, i + dialogCols))
+  const rows: number[][] = []
+  const ids = allIds.value.slice(0, dialogVisibleCount.value)
+  for (let i = 0; i < ids.length; i += dialogCols) {
+    rows.push(ids.slice(i, i + dialogCols))
   }
   return rows
 })
 
 // Keep dialog slider reasonable as data changes
 watch(
-  () => allItems.value.length,
+  () => allIds.value.length,
   (n) => {
     if (n <= 100) {
       dialogAll.value = true
@@ -418,6 +420,12 @@ watch(
 .empty {
   opacity: 0.7;
   padding: 8px 0;
+}
+
+.related-loading {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0;
 }
 
 .dialog-body {
