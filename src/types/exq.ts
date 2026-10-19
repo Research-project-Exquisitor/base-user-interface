@@ -147,6 +147,12 @@ export interface ExqSubmissionRequest {
   end?: number
 }
 
+export interface ExqSubmissionResult {
+  status: boolean
+  submission: string // 'CORRECT' | 'WRONG' | anything else the server reports
+  description: string
+}
+
 export interface ExqClearItemSetRequest {
   session: string
   modelId: number

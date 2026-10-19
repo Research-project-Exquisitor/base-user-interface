@@ -144,6 +144,7 @@ import { useItemStore } from '@/stores/item'
 import { useAppStore } from '@/stores/app'
 import { useModelStore } from '@/stores/model'
 import { useErrorStore } from '@/stores/error'
+import { useSubmissionStore } from '@/stores/submission'
 import { submitAnswer } from '@/services/ExquisitorAPI'
 
 const props = defineProps<{
@@ -281,10 +282,13 @@ async function submit() {
     end = mid + MIDPOINT_HALF_WINDOW_MS
   }
 
+  start = Math.round(start)
+  end = Math.round(end)
+
   submitting.value = true
   try {
     // Errors propagate to the global errorHandler, which shows the error dialog
-    await submitAnswer({
+    const result = await submitAnswer({
       session_info: {
         session: appStore.session,
         modelId: props.modelId,
@@ -292,11 +296,12 @@ async function submit() {
       },
       name,
       qa: false,
-      start: Math.round(start),
-      end: Math.round(end),
+      start,
+      end,
       evalId: appStore.selectedEvaluation.id,
     })
     emitAdd(ILSets.Submitted)
+    useSubmissionStore().show(result, `Video ${name}, ${(start / 1000).toFixed(1)}–${(end / 1000).toFixed(1)} s`)
   } finally {
     submitting.value = false
   }

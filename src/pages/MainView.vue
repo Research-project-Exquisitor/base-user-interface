@@ -119,6 +119,26 @@
         <v-btn variant="text" @click="errorStore.dismiss()">Dismiss</v-btn>
       </template>
     </v-snackbar>
+
+    <v-snackbar
+     v-model="submissionStore.visible"
+     :color="submissionStore.color"
+     :timeout="6000"
+     location="top"
+     multi-line
+    >
+      <div class="d-flex align-center ga-3">
+        <v-icon :icon="submissionStore.icon" size="32" />
+        <div>
+          <div class="text-h6 font-weight-bold">{{ submissionStore.title }}</div>
+          <div>{{ submissionStore.result?.description }}</div>
+          <div v-if="submissionStore.label" class="text-caption" style="opacity:0.8">{{ submissionStore.label }}</div>
+        </div>
+      </div>
+      <template #actions>
+        <v-btn variant="text" icon="mdi-close" @click="submissionStore.dismiss()" />
+      </template>
+    </v-snackbar>
   </template>
 </template>
 
@@ -138,6 +158,7 @@ import { useItemStore } from '@/stores/item'
 import { useChatStore } from '@/stores/chat'
 import { useFeedbackStore } from '@/stores/feedback'
 import { useErrorStore } from '@/stores/error'
+import { useSubmissionStore } from '@/stores/submission'
 import { AdvancedSearchPayload } from '@/types/chat'
 import { ILSets } from '@/types/mediaitem'
 
@@ -148,6 +169,7 @@ const activeModel = computed(() => useModelStore().activeModel)
 const showMedia = ref(false)
 const feedbackStore = useFeedbackStore()
 const errorStore = useErrorStore()
+const submissionStore = useSubmissionStore()
 const chatVisible = ref(true)
 const posDrawerOpen = ref(false)
 const negDrawerOpen = ref(false)

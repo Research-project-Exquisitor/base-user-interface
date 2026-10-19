@@ -181,6 +181,7 @@ import { useModelStore } from '@/stores/model'
 import { useAppStore } from '@/stores/app'
 import { logEvents, submitAnswer } from '@/services/ExquisitorAPI'
 import { useFilterStore } from '@/stores/filter'
+import { useSubmissionStore } from '@/stores/submission'
 
 const appStore = useAppStore()
 const modelStore = useModelStore()
@@ -365,7 +366,7 @@ function closeViewer() {
   emit('closeMediaViewer')
 }
 
-function submitCurrent() {
+async function submitCurrent() {
   if (!selectedItem.value) return
 
   if (useAppStore().selectedEvaluation.id === '') {
@@ -375,23 +376,23 @@ function submitCurrent() {
     return
   }
 
-  snackColor.value = 'indigo'
-
   const start = Math.round(currentTime.value * 1000)
   const end = Math.round((currentTime.value+2) * 1000)
+  const name = (selectedItem.value.metadata as any)?.['Video ID'] ?? ''
 
-  submitAnswer({
+  const result = await submitAnswer({
     session_info: {
       session: useAppStore().session,
       modelId: activeModelId.value,
       collection: modelStore.getModelCollection(activeModelId.value)
     },
-    name: (selectedItem.value.metadata as any)?.['Video ID'] ?? '',
+    name,
     qa: false,
     start,
     end,
     evalId: useAppStore().selectedEvaluation.id,
   })
+  useSubmissionStore().show(result, `Video ${name}, ${(start / 1000).toFixed(1)}–${(end / 1000).toFixed(1)} s`)
 }
 </script>
 

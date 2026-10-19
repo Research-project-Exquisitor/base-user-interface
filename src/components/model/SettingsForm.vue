@@ -174,12 +174,6 @@
     </v-card>
   </v-dialog>
 
-  <v-snackbar v-model="snackbar" :timeout="snackTimeout" location="bottom center" :color="snackColor">
-    {{ text }}
-    <template #actions>
-      <v-btn variant="text" @click="snackbar=false" icon="mdi-close" />
-    </template>
-  </v-snackbar>
 </template>
 
 <script setup lang="ts">
@@ -189,6 +183,7 @@ import { useModelStore } from '@/stores/model'
 import EditTextField from '@/components/general/EditTextField.vue'
 import { logEvents, submitAnswer } from '@/services/ExquisitorAPI'
 import { useAppStore } from '@/stores/app'
+import { useSubmissionStore } from '@/stores/submission'
 import { ResourceValues } from '@/types/model'
 
 const modelStore = useModelStore()
@@ -245,19 +240,10 @@ function applyModelSettings() {
 
 // Competition QA
 const qaAnswer = ref('')
-const snackbar = ref(false)
-const snackTimeout = ref(3000)
-const snackColor = ref('white')
-const text = ref('')
 
-function snack(msg: string) {
-  snackbar.value = true
-  snackColor.value = 'success'
-  text.value = msg
-}
-
-function submitTextAnswerVBS() {
+async function submitTextAnswerVBS() {
   if (!activeModel.value) return
+  const answer = qaAnswer.value
   const requestObject = {
     session_info: {
       session: appStore.session,
@@ -265,12 +251,13 @@ function submitTextAnswerVBS() {
       collection: modelStore.getModelCollection(activeModel.value.id),
     },
     name: '',
-    text: qaAnswer.value,
+    text: answer,
     qa: true,
     evalId: appStore.selectedEvaluation.id,
   }
-  submitAnswer(requestObject)
-  snack(`Submitted answer "${qaAnswer.value}".`)
+  // On failure the answer stays in the field so it can be resubmitted
+  const result = await submitAnswer(requestObject)
+  useSubmissionStore().show(result, `Answer "${answer}"`)
   qaAnswer.value = ''
 }
 
