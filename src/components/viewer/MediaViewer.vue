@@ -16,15 +16,11 @@
            class="viewer-title viewer-title--ellipsis"
            :data-eid="eid('title')"
           >
-            <span class="label">Filename:</span>
-            <span class="value">{{ filename }}</span>
-            <span v-if="videoId" class="value"> (Video ID: {{ videoId }})</span>
+            {{ headerTitle }}
           </div>
         </template>
 
-        <div class="tooltip-surface">
-          Filename: {{ filename }}<span v-if="videoId"> (Video ID: {{ videoId }})</span>
-        </div>
+        <div class="tooltip-surface">{{ headerTitle }}</div>
       </v-tooltip>
 
       <div v-else class="viewer-title" :data-eid="eid('title')">No item selected</div>
@@ -32,6 +28,7 @@
        :model-id="activeModelId"
        :item="selectedItem"
        :group="selectedGroup"
+       :filename="filename"
        :is-main-key="filterStore.isMain"
        :is-group-key="filterStore.isGroup"
       />
@@ -202,9 +199,22 @@ const filename = computed(() => {
   return tp ? tp.split('/').slice(-1)[0] : ''
 })
 
+// Video ID is an item tagset (shared by all shots of a video), not part of group metadata
 const videoId = computed(() => {
   const md: any = selectedItem.value?.metadata ?? {}
   return md['Video ID'] ?? ''
+})
+
+// Title is a video (group) tagset; may come back as a list
+const title = computed(() => {
+  const t: any = selectedGroup.value?.metadata?.['Title'] ?? (selectedItem.value?.metadata as any)?.['Title']
+  return Array.isArray(t) ? t.join(', ') : (t ?? '')
+})
+
+// "(Video ID) Title", falling back to the filename when there's no title
+const headerTitle = computed(() => {
+  const name = title.value || filename.value
+  return videoId.value ? `(${videoId.value}) ${name}` : name
 })
 
 const isGroupVideo = computed(() => selectedGroup.value?.groupMediaType === MediaType.Video)

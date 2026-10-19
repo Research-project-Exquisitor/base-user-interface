@@ -65,6 +65,11 @@
       <v-divider />
 
       <v-card-text class="meta-body" :data-eid="eid('body')">
+        <div v-if="filename" class="meta-row mb-3" :data-eid="eid('filename')">
+          <div class="meta-key">Filename</div>
+          <div class="meta-val meta-filename">{{ filename }}</div>
+        </div>
+
         <v-expansion-panels
          multiple
          variant="accordion"
@@ -208,7 +213,8 @@ const props = defineProps<{
   modelId: string | number
   item: MediaItem | null
   group: AnyGroup | null
-  
+  filename?: string
+
   // Pass your filterStore helpers in
   isMainKey: (key: string) => boolean
   isGroupKey: (key: string) => boolean
@@ -321,6 +327,10 @@ watch(open, (isOpen) => {
   white-space: normal !important;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.meta-filename {
+  overflow-wrap: anywhere;
 }
 
 .empty {
