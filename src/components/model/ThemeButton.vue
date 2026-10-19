@@ -66,7 +66,7 @@ import { computed, ref, watch } from 'vue'
 import { useTheme } from 'vuetify'
 import { useAppStore, type ThemeId } from '@/stores/app'
 
-const props = defineProps<{ modelId: number }>()
+defineProps<{ modelId: number }>()
 const appStore = useAppStore()
 const vuetifyTheme = useTheme()
 

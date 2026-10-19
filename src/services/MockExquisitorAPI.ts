@@ -20,7 +20,7 @@ function getTestImagePaths() : string[] {
     var imgs : string[] = []
     for (var i = 0; i < 200; i++) {
         const imgName = i.toString().padStart(5, '0')
-        imgs.push('/test-images-lsc/'+imgName+'.jpg')
+        imgs.push('/test-images/'+imgName+'.jpg')
     }
     return imgs
 }
