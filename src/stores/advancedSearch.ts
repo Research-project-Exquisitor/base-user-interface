@@ -3,7 +3,6 @@
 import { ref } from "vue"
 import { AdvancedSearchPayload } from "@/types/chat"
 import { defineStore } from "pinia"
-import { AppliedFilters } from "@/types/filter"
 
 export const useAdvancedSearchStore = defineStore('advancedSearch', () => {
   const isOpen = ref(false)
@@ -13,7 +12,7 @@ export const useAdvancedSearchStore = defineStore('advancedSearch', () => {
     queryText: '',
     searchType: 'text',
     searchModel: 'clip',
-    filters: {} as AppliedFilters,
+    filters: undefined,
     history: false,
   } as any)
 

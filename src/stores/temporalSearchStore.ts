@@ -6,8 +6,6 @@ import { ExqTemporalSearchRequest } from "@/types/exq"
 import { defineStore } from "pinia"
 import { useAppStore } from "./app"
 import { useModelStore } from "./model"
-import { ActiveFiltersDB } from "@/types/filter"
-import { useFilterStore } from "./filter"
 import { useChatStore } from "./chat"
 
 export const useTemporalSearchStore = defineStore('temporalSearch', () => {
@@ -44,12 +42,6 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
 
     // Implement the search logic here using the orderedSelection
     console.log("Searching with ordered selection:", orderedSelection)
-    let prepFilters: (ActiveFiltersDB | undefined)[] = []
-    for (const f of orderedSelection) {
-      if (Object.keys(f.filters).length > 0) {
-        prepFilters.push(useFilterStore().prepareFilters(modelStore.activeModel!.id, f.filters))
-      }
-    }
     let reqObj : ExqTemporalSearchRequest = {
       session_info: {
         session: useAppStore().session, 
@@ -58,7 +50,7 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
       },
       n: 100,
       queries: orderedSelection.map(q => q.text),
-      filters: prepFilters,
+      filters: orderedSelection.map(f => f.filters),
       excluded: [],
       seen: [],
     }

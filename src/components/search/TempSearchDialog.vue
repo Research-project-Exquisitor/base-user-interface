@@ -37,8 +37,8 @@
             <div>
               <strong>Filters:</strong>
               <ul>
-                <li v-for="(values, filterId) in q.filters" :key="filterId">
-                  {{ filterId }}: 
+                <li v-for="(values, filterId) in appliedFiltersFor(q)" :key="filterId">
+                  {{ filterId }}:
                   <span v-for="value in values" :key="value.value">
                     {{ value.value }}
                     {{ values.indexOf(value) < values.length - 1 ? ', ' : '' }}
@@ -83,12 +83,21 @@
 <script setup lang="ts">
 import { logEvents } from '@/services/ExquisitorAPI';
 import { useAppStore } from '@/stores/app';
+import { useFilterStore } from '@/stores/filter';
 import { useTemporalSearchStore } from '@/stores/temporalSearchStore';
 import { ChatQuery } from '@/types/chat';
+import { AppliedFilters } from '@/types/filter';
 import { storeToRefs } from 'pinia';
 
 const tempStore = useTemporalSearchStore()
 const { isOpen, temporalSelection, loadingResults } = storeToRefs(tempStore)
+
+const filterStore = useFilterStore()
+
+function appliedFiltersFor(q: ChatQuery): AppliedFilters {
+  const allInfos = Array.from(filterStore.filtersInfo.values()).flat()
+  return filterStore.toAppliedFilters(q.filters, allInfos)
+}
 
 const orderedSelection = ref<ChatQuery[]>([])
 

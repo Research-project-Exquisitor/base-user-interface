@@ -10,7 +10,6 @@ export type FilterValue = {id: number, value: string}
 
 export type AppliedFilters = Record<number, FilterValue[]>
 
-export type UIValueFilters = Record<number, FilterValue[]>
 
 // Types
 export type LogicalOp = "AND" | "OR";

@@ -65,7 +65,7 @@
                      return-object
                      variant="solo-filled"
                      density="comfortable"
-                     @update:model-value="onAlphaChange(f)"
+                     @update:model-value="onValueFilterChange(f)"
                     />
                   </template>
 
@@ -73,7 +73,7 @@
                   <template v-else-if="isRangeType(f.tagtype)">
                     <div class="d-flex align-center ga-2">
                       <v-select
-                       v-model="local.typed[f.id].op"
+                       v-model="local.rangeInputs[f.id].op"
                        :data-eid="`adv_filter_${f.id}_op`"
                        :items="operatorOptions(f.tagtype)"
                        label="Op"
@@ -81,7 +81,7 @@
                        density="comfortable"
                        hide-details
                        style="max-width: 130px"
-                       @update:model-value="debouncedApplyRangeLeaf(f)"
+                       @update:model-value="onRangeInput(f)"
                       />
                       <v-spacer />
                       <v-chip size="x-small" variant="outlined">
@@ -89,9 +89,9 @@
                       </v-chip>
                     </div>
 
-                    <div class="mt-2 d-flex ga-2" v-if="local.typed[f.id].op !== 'between'">
+                    <div class="mt-2 d-flex ga-2" v-if="local.rangeInputs[f.id].op !== 'between'">
                       <v-text-field
-                       v-model="local.typed[f.id].a"
+                       v-model="local.rangeInputs[f.id].a"
                        :data-eid="`adv_filter_${f.id}_a`"
                        :type="inputType(f.tagtype)"
                        :label="singleValueLabel(f)"
@@ -100,13 +100,13 @@
                        density="comfortable"
                        :hide-details="isTimeField(f) ? 'auto' : true"
                        :rules="timeFieldRules(f)"
-                       @update:model-value="debouncedApplyRangeLeaf(f)"
+                       @update:model-value="onRangeInput(f)"
                       />
                     </div>
 
                     <div class="mt-2 d-flex ga-2" v-else>
                       <v-text-field
-                       v-model="local.typed[f.id].a"
+                       v-model="local.rangeInputs[f.id].a"
                        :data-eid="`adv_filter_${f.id}_from`"
                        :type="inputType(f.tagtype)"
                        :label="fromLabel(f)"
@@ -115,10 +115,10 @@
                        density="comfortable"
                        :hide-details="isTimeField(f) ? 'auto' : true"
                        :rules="timeFieldRules(f)"
-                       @update:model-value="debouncedApplyRangeLeaf(f)"
+                       @update:model-value="onRangeInput(f)"
                       />
                       <v-text-field
-                       v-model="local.typed[f.id].b"
+                       v-model="local.rangeInputs[f.id].b"
                        :data-eid="`adv_filter_${f.id}_to`"
                        :type="inputType(f.tagtype)"
                        :label="toLabel(f)"
@@ -127,7 +127,7 @@
                        density="comfortable"
                        :hide-details="isTimeField(f) ? 'auto' : true"
                        :rules="timeFieldRules(f)"
-                       @update:model-value="debouncedApplyRangeLeaf(f)"
+                       @update:model-value="onRangeInput(f)"
                       />
                     </div>
 
@@ -201,14 +201,14 @@
                          return-object
                          variant="solo-filled"
                          density="comfortable"
-                         @update:model-value="onAlphaChange(f)"
+                         @update:model-value="onValueFilterChange(f)"
                         />
                       </template>
 
                       <template v-else-if="isRangeType(f.tagtype)">
                         <div class="d-flex align-center ga-2">
                           <v-select
-                           v-model="local.typed[f.id].op"
+                           v-model="local.rangeInputs[f.id].op"
                            :data-eid="`adv_filter_${f.id}_op`"
                            :items="operatorOptions(f.tagtype)"
                            label="Op"
@@ -216,7 +216,7 @@
                            density="comfortable"
                            hide-details
                            style="max-width: 130px"
-                           @update:model-value="debouncedApplyRangeLeaf(f)"
+                           @update:model-value="onRangeInput(f)"
                           />
                           <v-spacer />
                           <v-chip size="x-small" variant="outlined">
@@ -224,9 +224,9 @@
                           </v-chip>
                         </div>
 
-                        <div class="mt-2 d-flex ga-2" v-if="local.typed[f.id].op !== 'between'">
+                        <div class="mt-2 d-flex ga-2" v-if="local.rangeInputs[f.id].op !== 'between'">
                           <v-text-field
-                           v-model="local.typed[f.id].a"
+                           v-model="local.rangeInputs[f.id].a"
                            :data-eid="`adv_filter_${f.id}_a`"
                            :type="inputType(f.tagtype)"
                            :label="singleValueLabel(f)"
@@ -234,13 +234,13 @@
                            variant="outlined"
                            density="comfortable"
                            hide-details
-                           @update:model-value="debouncedApplyRangeLeaf(f)"
+                           @update:model-value="onRangeInput(f)"
                           />
                         </div>
 
                         <div class="mt-2 d-flex ga-2" v-else>
                           <v-text-field
-                           v-model="local.typed[f.id].a"
+                           v-model="local.rangeInputs[f.id].a"
                            :data-eid="`adv_filter_${f.id}_from`"
                            :type="inputType(f.tagtype)"
                            :label="fromLabel(f)"
@@ -248,10 +248,10 @@
                            variant="outlined"
                            density="comfortable"
                            hide-details
-                           @update:model-value="debouncedApplyRangeLeaf(f)"
+                           @update:model-value="onRangeInput(f)"
                           />
                           <v-text-field
-                           v-model="local.typed[f.id].b"
+                           v-model="local.rangeInputs[f.id].b"
                            :data-eid="`adv_filter_${f.id}_to`"
                            :type="inputType(f.tagtype)"
                            :label="toLabel(f)"
@@ -259,7 +259,7 @@
                            variant="outlined"
                            density="comfortable"
                            hide-details
-                           @update:model-value="debouncedApplyRangeLeaf(f)"
+                           @update:model-value="onRangeInput(f)"
                           />
                         </div>
 
@@ -316,9 +316,9 @@ import { logEvents } from '@/services/ExquisitorAPI'
 import type { AdvancedSearchPayload } from '@/types/chat'
 import type {
   ActiveFiltersDB,
-  AppliedFilters,
   FilterInfo,
   FilterExpr,
+  FilterValue,
   DBRangeConstraint,
 } from '@/types/filter'
 
@@ -348,7 +348,7 @@ const extraFilters = computed(() =>
 const toggleExtraFilters = ref(false)
 const file = ref<File | undefined>(undefined)
 
-type TypedState = { op: string; a: string; b: string }
+type RangeInputState = { op: string; a: string; b: string }
 
 const local = reactive({
   queryName: '',
@@ -357,10 +357,10 @@ const local = reactive({
   searchModel: 'clip',
 
   // UI selections for alphanumerical filters
-  valueFilters: {} as AppliedFilters,
+  valueFilters: {} as Record<number, FilterValue[]>,
 
-  // typed inputs for range filters
-  typed: {} as Record<number, TypedState>,
+  // operator + bound inputs for range filters
+  rangeInputs: {} as Record<number, RangeInputState>,
 
   // built leaves for range filters (so we don't rebuild everything on submit)
   rangeLeaves: {} as Record<number, FilterExpr>,
@@ -370,27 +370,31 @@ const emit = defineEmits<{
   (e: 'submit', payload: AdvancedSearchPayload): void
 }>()
 
-/* ---------- helpers: types ---------- */
+/* ---------- tagtype classification ---------- */
 function isAlpha(t: string) { return t === 'alphanumerical' }
 function isNumeric(t: string) { return t === 'numerical_int' || t === 'numerical_dec' }
-function isTime(t: string) { return t === 'time' }
-function isRangeType(t: string) { return isNumeric(t) || isTime(t) || t === 'date' || t === 'timestamp' }
+function isRangeType(t: string) { return isNumeric(t) || t === 'time' || t === 'date' || t === 'timestamp' }
 
-// ONLY numerical_int tagsets named "(ms)" accept HH:MM:SS -> ms conversion
+// Only numerical_int tagsets named "(ms)" accept HH:MM:SS -> ms conversion
 function isMsNumeric(f: FilterInfo) {
   return f.tagtype === 'numerical_int' && f.name.includes('(ms)')
 }
+
+// Groups the two cases that share HH:MM:SS input format
 function isTimeField(f: FilterInfo) {
   return f.tagtype === 'time' || isMsNumeric(f)
 }
 
+/* ---------- input helpers ---------- */
+
+// Returns a Vuetify validator enforcing HH:MM:SS format on time fields
 const TIME_RE = /^\d{2}:\d{2}:\d{2}$/
 function timeFieldRules(f: FilterInfo) {
   if (!isTimeField(f)) return []
   return [(v: string) => !v || TIME_RE.test(v) || 'Use HH:MM:SS format']
 }
 
-/* ---------- UX: operators + labels ---------- */
+// Date/time types use Before/After/At labels; numeric types use < <= > >= =
 function operatorOptions(tagtype: string) {
   if (tagtype === 'date' || tagtype === 'timestamp' || tagtype === 'time') {
     return [
@@ -400,7 +404,6 @@ function operatorOptions(tagtype: string) {
       { title: 'At (=)', value: '=' },
     ]
   }
-  // numeric
   return [
     { title: 'Between', value: 'between' },
     { title: '<', value: '<' },
@@ -411,27 +414,19 @@ function operatorOptions(tagtype: string) {
   ]
 }
 
+// Maps tagtype to an HTML input type so browsers show date/time pickers
 function inputType(tagtype: string) {
   if (tagtype === 'date') return 'date'
   if (tagtype === 'timestamp') return 'datetime-local'
   return 'text'
 }
 
-function singleValueLabel(f: FilterInfo) {
-  if (f.tagtype === 'date' || f.tagtype === 'timestamp') return 'Value'
-  if (f.tagtype === 'time') return 'Time (HH:MM:SS)'
-  return isMsNumeric(f) ? 'Time (HH:MM:SS)' : 'Value'
-}
-function fromLabel(f: FilterInfo) {
-  if (f.tagtype === 'date' || f.tagtype === 'timestamp') return 'From'
-  if (f.tagtype === 'time') return 'From (HH:MM:SS)'
-  return isMsNumeric(f) ? 'From (HH:MM:SS)' : 'From'
-}
-function toLabel(f: FilterInfo) {
-  if (f.tagtype === 'date' || f.tagtype === 'timestamp') return 'To'
-  if (f.tagtype === 'time') return 'To (HH:MM:SS)'
-  return isMsNumeric(f) ? 'To (HH:MM:SS)' : 'To'
-}
+// Labels shown on the range input fields
+function singleValueLabel(f: FilterInfo) { return isTimeField(f) ? 'Time (HH:MM:SS)' : 'Value' }
+function fromLabel(f: FilterInfo) { return isTimeField(f) ? 'From (HH:MM:SS)' : 'From' }
+function toLabel(f: FilterInfo) { return isTimeField(f) ? 'To (HH:MM:SS)' : 'To' }
+
+// Example text shown inside the input before the user types
 function placeholderFor(f: FilterInfo) {
   if (f.tagtype === 'time') return '01:23:45'
   if (isNumeric(f.tagtype)) return isMsNumeric(f) ? '00:01:23' : 'e.g. 42'
@@ -439,7 +434,9 @@ function placeholderFor(f: FilterInfo) {
 }
 
 /* ---------- logging ---------- */
-function onAlphaChange(f: FilterInfo) {
+
+// Logs the current selected values for a filter after the user changes it
+function onValueFilterChange(f: FilterInfo) {
   logEvents([{
     ts: Date.now(),
     action: 'Update Advanced Search Filter ' + f.name,
@@ -451,7 +448,9 @@ function onAlphaChange(f: FilterInfo) {
   }])
 }
 
-/* ---------- parsing (only what we truly need) ---------- */
+/* ---------- parsing ---------- */
+
+// Accepts ss, mm:ss, or hh:mm:ss
 function parseHHMMSSToMs(s: string): number | null {
   const parts = s.trim().split(':').map(p => p.trim())
   if (!parts.length || parts.some(p => p === '' || !/^\d+$/.test(p))) return null
@@ -464,7 +463,8 @@ function parseHHMMSSToMs(s: string): number | null {
   return ((h * 3600) + (m * 60) + sec) * 1000
 }
 
-function parseNumeric(f: FilterInfo, raw: string): number | null {
+// Converts raw text input to a number; for ms fields accepts HH:MM:SS as well
+function parseRangeInput(f: FilterInfo, raw: string): number | null {
   const s = raw.trim()
   if (!s) return null
   if (isMsNumeric(f) && s.includes(':')) return parseHHMMSSToMs(s)
@@ -472,19 +472,22 @@ function parseNumeric(f: FilterInfo, raw: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/* ---------- debounce to prevent UI thrash ---------- */
+/* ---------- range leaf building ---------- */
+
+// Debounces buildRangeLeaf per filter so rapid keystrokes don't trigger repeated rebuilds
 const rangeTimers = new Map<number, number>()
-function debouncedApplyRangeLeaf(f: FilterInfo) {
+function onRangeInput(f: FilterInfo) {
   const id = f.id
   const old = rangeTimers.get(id)
   if (old) window.clearTimeout(old)
-  const t = window.setTimeout(() => applyRangeLeafNow(f), 180)
+  const t = window.setTimeout(() => buildRangeLeaf(f), 180)
   rangeTimers.set(id, t)
 }
 
-/* ---------- build range leaves using store helper ---------- */
-function applyRangeLeafNow(f: FilterInfo) {
-  const st = local.typed[f.id]
+// Translates the current op + input values into a FilterLeaf and stores it; 
+// clears the leaf if inputs are incomplete
+function buildRangeLeaf(f: FilterInfo) {
+  const st = local.rangeInputs[f.id]
   if (!st) return
 
   const op = st.op
@@ -497,16 +500,7 @@ function applyRangeLeafNow(f: FilterInfo) {
   let lower: number | string | undefined
   let upper: number | string | undefined
 
-  if (f.tagtype === 'date' || f.tagtype === 'timestamp') {
-    if (op === '=') { lower = aRaw; upper = aRaw }
-    else if (op === '<' || op === '<=') upper = aRaw
-    else if (op === '>' || op === '>=') lower = aRaw
-    else if (op === 'between') {
-      lower = aRaw <= bRaw ? aRaw : bRaw
-      upper = aRaw <= bRaw ? bRaw : aRaw
-    }
-  } else if (f.tagtype === 'time') {
-    // keep HH:MM:SS as strings, no ms conversion
+  if (f.tagtype === 'date' || f.tagtype === 'timestamp' || f.tagtype === 'time') {
     if (op === '=') { lower = aRaw; upper = aRaw }
     else if (op === '<' || op === '<=') upper = aRaw
     else if (op === '>' || op === '>=') lower = aRaw
@@ -515,8 +509,8 @@ function applyRangeLeafNow(f: FilterInfo) {
       upper = aRaw <= bRaw ? bRaw : aRaw
     }
   } else {
-    const aN = parseNumeric(f, aRaw)
-    const bN = parseNumeric(f, bRaw)
+    const aN = parseRangeInput(f, aRaw)
+    const bN = parseRangeInput(f, bRaw)
     if (op !== 'between' && aN == null) { delete local.rangeLeaves[f.id]; return }
     if (op === 'between' && (aN == null || bN == null)) { delete local.rangeLeaves[f.id]; return }
 
@@ -546,7 +540,8 @@ function applyRangeLeafNow(f: FilterInfo) {
   }])
 }
 
-/* ---------- ActiveFiltersDB builder using store helpers ---------- */
+// Combines all selected value filters and range leaves into a single AND group for the API; 
+// returns undefined if nothing is selected
 function buildActiveFiltersDB(): ActiveFiltersDB | undefined {
   const children: FilterExpr[] = []
 
@@ -559,7 +554,7 @@ function buildActiveFiltersDB(): ActiveFiltersDB | undefined {
       filterStore.makeValueLeaf(
         f.id,
         f.tagtypeId,
-        selected.map(v => v.id),
+        selected.map((v: FilterValue) => v.id),
         "OR",
         false
       )
@@ -574,83 +569,48 @@ function buildActiveFiltersDB(): ActiveFiltersDB | undefined {
   return filterStore.makeActiveFilters(root)
 }
 
-/* ---------- hydration (supports both legacy & ActiveFiltersDB) ---------- */
-function cloneAppliedFilters(src: any): AppliedFilters {
-  const out: AppliedFilters = {}
-  if (!src || typeof src !== 'object' || Array.isArray(src)) return out
-  for (const [k, v] of Object.entries(src)) {
-    if (Array.isArray(v)) out[Number(k)] = (v as any[]).slice() as any
-  }
-  return out
-}
-
-function ensureAllKeys() {
+// Ensures every filter has a reactive slot so v-model bindings work before the user interacts
+function initFilterState() {
   for (const f of allFilters.value) {
     if (!Array.isArray(local.valueFilters[f.id])) local.valueFilters[f.id] = []
-    if (isRangeType(f.tagtype) && !local.typed[f.id]) local.typed[f.id] = { op: 'between', a: '', b: '' }
+    if (isRangeType(f.tagtype) && !local.rangeInputs[f.id]) local.rangeInputs[f.id] = { op: 'between', a: '', b: '' }
   }
 }
 
-// Walk ActiveFiltersDB and hydrate UI
-function hydrateFromActiveFiltersDB(af: ActiveFiltersDB) {
-  const byId = new Map<number, FilterInfo>()
-  for (const f of allFilters.value) byId.set(f.id, f)
+// Restores the form when re-opening a previously submitted query for editing
+function hydrateFilters(af: ActiveFiltersDB) {
+  Object.assign(local.valueFilters, filterStore.toAppliedFilters(af, allFilters.value))
 
-  const walk = (expr: any) => {
-    if (!expr) return
+  // Reconstruct range input state from stored bounds:
+  // both bounds = between, lower only = >, upper only = <
+  const byId = new Map(allFilters.value.map(f => [f.id, f]))
+  const walk = (expr: FilterExpr) => {
     if (expr.kind === 'leaf') {
-      const id = expr.filter?.id
-      const c = expr.filter?.constraint
-      if (typeof id !== 'number' || !c) return
+      const { id, constraint } = expr.filter
+      if (!('lower_bound' in constraint || 'upper_bound' in constraint)) return
       const info = byId.get(id)
       if (!info) return
-
-      // DBValueConstraint -> UI select values
-      if ('value_ids' in c) {
-        const ids: number[] = c.value_ids ?? []
-        local.valueFilters[id] = info.values.filter(v => ids.includes(v.id))
-        return
-      }
-
-      // DBRangeConstraint -> typed fields + range leaf
-      if ('lower_bound' in c || 'upper_bound' in c) {
-        const lb = (c as DBRangeConstraint).lower_bound
-        const ub = (c as DBRangeConstraint).upper_bound
-        if (!local.typed[id]) local.typed[id] = { op: 'between', a: '', b: '' }
-
-        if (lb != null && ub != null) {
-          local.typed[id] = { op: 'between', a: String(lb), b: String(ub) }
-        } else if (lb != null) {
-          local.typed[id] = { op: '>', a: String(lb), b: '' }
-        } else if (ub != null) {
-          local.typed[id] = { op: '<', a: String(ub), b: '' }
-        }
-
-        // build leaf using store helper
-        local.rangeLeaves[id] = filterStore.makeRangeLeaf(
-          info.id,
-          info.tagtypeId,
-          lb as any,
-          ub as any,
-          false
-        )
-      }
-      return
-    }
-    if (expr.kind === 'group' && Array.isArray(expr.children)) {
-      for (const ch of expr.children) walk(ch)
+      const lb = (constraint as DBRangeConstraint).lower_bound
+      const ub = (constraint as DBRangeConstraint).upper_bound
+      local.rangeInputs[id] = lb != null && ub != null ? { op: 'between', a: String(lb), b: String(ub) }
+        : lb != null ? { op: '>', a: String(lb), b: '' }
+        : { op: '<', a: String(ub!), b: '' }
+      local.rangeLeaves[id] = filterStore.makeRangeLeaf(info.id, info.tagtypeId, lb as any, ub as any)
+    } else if (expr.kind === 'group') {
+      for (const ch of (expr as { children: FilterExpr[] }).children) walk(ch)
     }
   }
-
   walk(af.root)
 }
 
+// Closes the dialog and resets transient UI state (selected file, extra filters panel)
 function close() {
   advStore.close()
   file.value = undefined
   toggleExtraFilters.value = false
 }
 
+// Image search requires base64, not a File object
 function fileToDataURL(f: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader()
@@ -660,6 +620,7 @@ function fileToDataURL(f: File): Promise<string> {
   })
 }
 
+// Collects the current form state into a payload and emits it to the parent to trigger a search
 async function search() {
   logEvents([{
     ts: Date.now(),
@@ -674,14 +635,12 @@ async function search() {
     local.queryName = local.queryText
   }
 
-  const filtersDB = buildActiveFiltersDB()
-
   emit('submit', {
     queryName: local.queryName,
     queryText: local.queryText,
     searchType: local.searchType,
     searchModel: local.searchModel,
-    filters: filtersDB ?? undefined,
+    filters: buildActiveFiltersDB(),
     history: payload.value.history ?? false,
   })
 
@@ -706,17 +665,12 @@ watch(
 
     // reset local state
     local.valueFilters = {}
-    local.typed = {}
+    local.rangeInputs = {}
     local.rangeLeaves = {}
-    ensureAllKeys()
+    initFilterState()
 
-    // hydrate filters: supports legacy AppliedFilters map OR ActiveFiltersDB
-    const pf: any = payload.value.filters
-    if (pf && typeof pf === 'object' && 'root' in pf) {
-      hydrateFromActiveFiltersDB(pf as ActiveFiltersDB)
-    } else {
-      local.valueFilters = cloneAppliedFilters(pf)
-      ensureAllKeys()
+    if (payload.value.filters) {
+      hydrateFilters(payload.value.filters)
     }
   },
   { immediate: true }
@@ -727,9 +681,9 @@ watch(activeModelId, async () => {
   await filterStore.loadFilters(appStore.session, activeModelId.value)
   // reset states for new model
   local.valueFilters = {}
-  local.typed = {}
+  local.rangeInputs = {}
   local.rangeLeaves = {}
-  ensureAllKeys()
+  initFilterState()
 })
 </script>
 
