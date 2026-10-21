@@ -36,6 +36,9 @@ export const useItemStore = defineStore('item', () => {
   const inflightBase = new Map<string, Promise<MediaItem>>()
   const inflightInfo = new Map<string, Promise<Metadata>>()
 
+  // Item tagset whose value labels an item's group. All items of a group share it
+  const groupKey = ref('Video ID')
+
   function collectionMap(collection: string): Map<number, MediaItem> {
     if (!items.has(collection)) items.set(collection, new Map<number, MediaItem>())
     return items.get(collection)!
@@ -73,8 +76,13 @@ export const useItemStore = defineStore('item', () => {
     const key = `${collection}/${itemId}`
     let p = inflightBase.get(key)
     if (!p) {
-      p = getItem(appStore.session, itemId, modelId, collection, { signal })
+      const filterIds = filterStore.tagsetIds(collection, [groupKey.value])
+      p = getItem(appStore.session, itemId, modelId, collection, { filterIds, signal })
         .then(it => {
+          // Keep only the group key, since metadata being set means all item tagsets are loaded
+          const val = it.metadata?.[groupKey.value]
+          if (val != null && val !== '') it.groupKey = Array.isArray(val) ? val.join(', ') : String(val)
+          delete it.metadata
           const colMap = collectionMap(collection)
           // Keep the cached item if its metadata arrived while this was in flight
           if (!colMap.has(itemId)) colMap.set(itemId, it)
@@ -341,7 +349,8 @@ export const useItemStore = defineStore('item', () => {
     items, 
     modelItems,
     selectionFailed,
-    fetchMediaItem, 
+    groupKey,
+    fetchMediaItem,
     fetchMediaItems, 
     addItemToSet, 
     addItemsToSet, 

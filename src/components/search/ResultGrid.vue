@@ -154,7 +154,7 @@
         <div v-for="groupId in groupOrder" :key="groupId" class="group-block">
           <div class="d-flex align-center ga-2 mb-2">
             <v-divider class="flex-grow-1" />
-            <div class="text-subtitle-1 font-weight-medium">Video {{ groupId }}</div>
+            <div class="text-subtitle-1 font-weight-medium">Video {{ groupLabel(groupId) }}</div>
             <v-divider class="flex-grow-1" />
           </div>
 
@@ -324,6 +324,12 @@ function getGroupInfoForItem(id: number): GroupMetadata | null {
   const it = itemsById.get(id)
   if (!it || it.groupId == null) return null
   return groupStore.get(collection.value, it.groupId) // NOTE: groupStore cache is keyed by collection+groupId
+}
+
+// All items of a group share the key, so the first one is enough
+function groupLabel(groupId: number): string | number {
+  const first = groups.get(groupId)?.[0]
+  return (first != null && itemsById.get(first)?.groupKey) || groupId
 }
 
 async function prefetchShownItems(ids: number[]) {

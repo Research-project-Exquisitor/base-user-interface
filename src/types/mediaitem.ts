@@ -32,6 +32,7 @@ export default interface MediaItem {
   thumbPath : string, // For Items in Grid and Overlays
   srcPath : string // Enlarged version for Summary View, if downloading and rendering is not a performance hit use this path in thumbPath
   groupId? : number, // groupId
+  groupKey? : string, // value of the item store's groupKey tagset (Video ID by default), labels the group
   currentSets? : Map<number,boolean[]>, // K = modelId, V = boolean[Positives,Negatives,History,Submitted]
   metadata?: Record<string, number | string | (number | string)[]>
 }
