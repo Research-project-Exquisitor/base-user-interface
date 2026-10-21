@@ -17,6 +17,10 @@
           <div class="row-wrap" :class="{ 'row-wrap--active': item.id === currentQueryId }">
             <!-- top line -->
             <div class="row-top" @click="$emit('show-results', item.id, item.resultIds)">
+              <div class="row-time text-caption opacity-70" :data-eid="eid(`time_${item.id}`)">
+                {{ formatTime(item.timestamp) }}
+              </div>
+
               <div class="row-title min-w-0" :data-eid="eid(`title_${item.id}`)">
                 <template v-if="item.searchType === 'text' || item.searchType === 'temporal'">
                   {{ item.name }}
@@ -24,10 +28,6 @@
                 <template v-else>
                   Image query
                 </template>
-              </div>
-
-              <div class="row-time text-caption opacity-70" :data-eid="eid(`time_${item.id}`)">
-                {{ formatTime(item.timestamp) }}
               </div>
             </div>
 
@@ -300,9 +300,8 @@ function toggleSelection(q: ChatQuery) {
 
 .row-top {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .row-title {
@@ -317,6 +316,7 @@ function toggleSelection(q: ChatQuery) {
 }
 
 .row-time {
+  align-self: flex-end;
   white-space: nowrap;
   font-weight: 600;
 }
