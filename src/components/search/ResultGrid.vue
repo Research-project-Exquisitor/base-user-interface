@@ -489,6 +489,8 @@ function onRemove(payload: { itemId: number; set: ILSets }) {
 <style scoped>
 .result-card {
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .result-header {
@@ -501,8 +503,14 @@ function onRemove(payload: { itemId: number; set: ILSets }) {
   margin-left: auto;
 }
 
+/* Takes the height between the header and Load More, on very short screens the body scrolls */
 .result-body {
   padding: 8px;
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
 }
 
 .empty-state {
@@ -516,14 +524,18 @@ function onRemove(payload: { itemId: number; set: ILSets }) {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--tile-w), 1fr));
   gap: 8px;
-  max-height: 80vh;
+  /* Rows keep the tile height, auto rows would shrink to fit the fixed grid height */
+  grid-auto-rows: max-content;
+  flex: 1 1 0;
+  min-height: 200px;
   overflow-y: auto;
   padding: 4px;
 }
 
 /* group view */
 .group-view {
-  max-height: 80vh;
+  flex: 1 1 0;
+  min-height: 200px;
   overflow-y: auto;
   padding: 4px;
 }
