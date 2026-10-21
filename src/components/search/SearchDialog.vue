@@ -565,7 +565,8 @@ function buildActiveFiltersDB(): ActiveFiltersDB | undefined {
   for (const leaf of Object.values(local.rangeLeaves)) children.push(leaf)
 
   if (!children.length) return undefined
-  const root = filterStore.makeGroup("AND", children, false)
+  // A single filter is sent as the root leaf, a group is only needed to AND several
+  const root = children.length === 1 ? children[0] : filterStore.makeGroup("AND", children, false)
   return filterStore.makeActiveFilters(root)
 }
 
