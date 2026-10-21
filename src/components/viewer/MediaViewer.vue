@@ -157,8 +157,28 @@
          :media-item="selectedItem"
          :related-items="selectedGroup.items"
          :loading="!selectedGroup.itemsLoaded"
+         :search-results="videoResults"
          @select-item="updateSelected"
-        />
+        >
+          <template #search>
+            <v-text-field
+             v-if="isGroupVideo"
+             v-model="videoQuery"
+             :data-eid="eid('video_search')"
+             class="video-search"
+             placeholder="Search in this video"
+             prepend-inner-icon="mdi-magnify"
+             :loading="videoSearching"
+             :disabled="!videoShotCount"
+             density="compact"
+             variant="outlined"
+             hide-details
+             clearable
+             @keydown.enter="searchInVideo"
+             @click:clear="clearVideoSearch"
+            />
+          </template>
+        </RelatedItemsGrid>
       </div> 
     </v-card-text>
   </v-card>
@@ -173,9 +193,10 @@ import { ILSets, MediaType } from '@/types/mediaitem'
 import { useItemStore } from '@/stores/item'
 import { useModelStore } from '@/stores/model'
 import { useAppStore } from '@/stores/app'
-import { logEvents, submitAnswer } from '@/services/ExquisitorAPI'
+import { logEvents, searchText, submitAnswer } from '@/services/ExquisitorAPI'
 import { useFilterStore } from '@/stores/filter'
 import { useSubmissionStore } from '@/stores/submission'
+import { useErrorStore } from '@/stores/error'
 
 const appStore = useAppStore()
 const modelStore = useModelStore()
@@ -199,7 +220,7 @@ const filename = computed(() => {
 // Video ID is an item tagset (shared by all shots of a video), not part of group metadata
 const videoId = computed(() => {
   const md: any = selectedItem.value?.metadata ?? {}
-  return md['Video ID'] ?? ''
+  return md['Video ID'] ?? selectedItem.value?.groupKey ?? ''
 })
 
 // Title is a video (group) tagset; may come back as a list
@@ -377,6 +398,67 @@ function updateSelected(itemId?: number) {
   if (typeof itemId === 'number') void itemStore.setSelectedItem(itemId)
 }
 
+// --- In-video search ---
+// Text search limited to this video. The results reorder the related grid
+const videoQuery = ref<string | null>('')
+const videoResults = ref<number[] | null>(null)
+const videoSearching = ref(false)
+
+// Any shot of the video can match, so k is the video's shot count
+const videoShotCount = computed(() => selectedGroup.value?.itemsLoaded ? selectedGroup.value.items.length : 0)
+
+// Value leaf for this video's ID, built like the value filters in the advanced search
+function videoFilter() {
+  const info = filterStore.filtersInfo.get(activeModelId.value)?.find(f => f.name === itemStore.groupKey)
+  const value = info?.values?.find(v => v.value === String(videoId.value))
+  if (!info || !value) return null
+  return filterStore.makeActiveFilters(filterStore.makeValueLeaf(info.id, info.tagtypeId, [value.id]))
+}
+
+async function searchInVideo() {
+  const text = videoQuery.value?.trim()
+  if (!text) return clearVideoSearch()
+
+  const filters = videoFilter()
+  if (!filters) {
+    useErrorStore().show(`Cannot search in this video, no ${itemStore.groupKey} filter value for "${videoId.value}".`)
+    return
+  }
+
+  // Ignore the response if the viewer switched to another video meanwhile
+  const src = selectedGroup.value?.src
+  videoSearching.value = true
+  try {
+    const res = await searchText({
+      session_info: {
+        session: appStore.session,
+        modelId: activeModelId.value,
+        collection: modelStore.getModelCollection(activeModelId.value)
+      },
+      n: videoShotCount.value,
+      text,
+      filters,
+      excluded: [],
+      search_model: 'clip'
+    })
+    if (selectedGroup.value?.src === src) videoResults.value = res.suggestions
+  } catch (err) {
+    useErrorStore().show(err)
+  } finally {
+    videoSearching.value = false
+  }
+}
+
+function clearVideoSearch() {
+  videoQuery.value = ''
+  videoResults.value = null
+}
+
+// A shot change within the same video keeps the results
+watch(() => selectedGroup.value?.src, (src, oldSrc) => {
+  if (src !== oldSrc) clearVideoSearch()
+})
+
 onUnmounted(() => {
   window.clearTimeout(settleTimer)
   teardownVideo()
@@ -470,6 +552,20 @@ async function submitCurrent() {
   gap: 10px;
   padding-top: 8px;
   padding-bottom: 6px;
+}
+
+.video-search {
+  flex: 1 1 auto;
+  min-width: 120px;
+  max-width: 320px;
+}
+
+/* Slightly taller than the small Open button (28px) instead of compact's 40px */
+.video-search :deep(.v-field) {
+  --v-input-control-height: 30px;
+  --v-input-padding-top: 0px;
+  --v-field-padding-bottom: 0px;
+  font-size: 0.875rem;
 }
 
 /* Related block spacing tightened */

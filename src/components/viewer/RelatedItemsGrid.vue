@@ -18,7 +18,9 @@
         </v-chip>
       </div>
 
-      <div class="d-flex align-center ga-2">
+      <div class="d-flex align-center justify-end flex-grow-1 ga-2 ml-2">
+        <slot name="search" />
+
         <v-btn
          :data-eid="eid('btn_open_dialog')"
          variant="outlined"
@@ -40,6 +42,7 @@
        :min="20"
        :max="summaryMax"
        :step="5"
+       :disabled="isSearching"
        hide-details
        thumb-label
        density="compact"
@@ -51,11 +54,11 @@
     <div
       class="preview-wrap"
       :data-eid="eid('preview_wrap')"
-      v-if="summaryIds.length > 0"
+      v-if="displayedIds.length > 0"
     >
       <div class="preview-grid" :data-eid="eid('preview_grid')">
         <div
-         v-for="id in summaryIds"
+         v-for="id in displayedIds"
          :key="id"
          class="preview-cell"
          :class="{ 'preview-cell--selected': id === selectedId }"
@@ -82,14 +85,25 @@
           />
         </div>
       </div>
-    </div> 
+
+      <!-- Keyed so it's observed again after each page, in case it's still in view -->
+      <div
+       v-if="hasMoreResults"
+       :key="shownCount"
+       v-intersect="loadMore"
+       class="results-sentinel"
+       :data-eid="eid('results_sentinel')"
+      >
+        <v-progress-circular indeterminate size="18" width="2" color="indigo" />
+      </div>
+    </div>
 
     <div v-else-if="loading" class="related-loading" :data-eid="eid('loading')">
       <v-progress-circular indeterminate color="indigo" />
     </div>
 
     <div v-else class="empty" :data-eid="eid('empty')">
-      No related items.
+      {{ isSearching ? 'No matches in this video.' : 'No related items.' }}
     </div>
 
     <!-- Dialog for dense/all view -->
@@ -223,6 +237,7 @@ const props = defineProps<{
   mediaItem: MediaItem
   relatedItems: number[]          // ids
   loading?: boolean               // related IDs still being fetched
+  searchResults?: number[] | null // in-video search results in ranked order, null when not searching
 }>()
 
 const emit = defineEmits<{
@@ -328,7 +343,25 @@ const summaryIds = computed(() => {
   return idxs.map(i => ids[i])
 })
 
-watch(summaryIds, ensureLoaded, { immediate: true })
+// In-video search results, loaded in pages as the grid scrolls
+const searchPageSize = 30
+const shownCount = ref(searchPageSize)
+
+watch(() => props.searchResults, () => { shownCount.value = searchPageSize })
+
+const isSearching = computed(() => props.searchResults != null)
+
+const displayedIds = computed(() =>
+  props.searchResults ? props.searchResults.slice(0, shownCount.value) : summaryIds.value
+)
+
+const hasMoreResults = computed(() => !!props.searchResults && shownCount.value < props.searchResults.length)
+
+function loadMore(visible: boolean) {
+  if (visible && hasMoreResults.value) shownCount.value += searchPageSize
+}
+
+watch(displayedIds, ensureLoaded, { immediate: true })
 
 function onSelect(id: number) {
   emit('select-item', id)
@@ -415,6 +448,12 @@ watch(
 .preview-cell--selected :deep(> *) {
   outline: 2px solid rgba(76, 201, 240, 0.85);
   border-radius: 12px;
+}
+
+.results-sentinel {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
 }
 
 .empty {
