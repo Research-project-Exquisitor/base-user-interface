@@ -1,21 +1,27 @@
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { searchTemporal } from "@/services/ExquisitorAPI"
+import { searchTemporal } from "@/services/searchApi"
 import { ChatQuery } from "@/types/chat"
-import { ExqTemporalHop, ExqTemporalSearchRequest } from "@/types/exq"
+import { ExqTemporalChain, ExqTemporalHop, ExqTemporalSearchRequest } from "@/types/exq"
+import { ILSets } from "@/types/mediaitem"
 import { defineStore } from "pinia"
 import { useAppStore } from "./app"
 import { useModelStore } from "./model"
 import { useChatStore } from "./chat"
+import { useItemStore } from "./item"
 
 export const useTemporalSearchStore = defineStore('temporalSearch', () => {
   const isOpen = ref(false)
   const temporalSelection = ref<ChatQuery[]>([])
   const loadingResults = ref(false)
-  
+  // Kept between dialog openings, the server's n counts videos and -1 chains per video keeps them all
+  const maxVideos = ref(100)
+  const chainsPerVideo = ref(3)
+
   const modelStore = useModelStore()
   const chatStore = useChatStore()
-  
+  const itemStore = useItemStore()
+
   function open(tempSelection: ChatQuery[]) {
     temporalSelection.value = tempSelection
     isOpen.value = true
@@ -26,47 +32,52 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
     isOpen.value = false
   }
   
-  async function search(orderedSelection: ChatQuery[]) {
-    loadingResults.value = true
-    const chat = chatStore.chatSessions.get(modelStore.activeModel!.id)
-    if (
-      chat!.find((c) => (
-        c.text === orderedSelection.map(q => q.text).join(" || ") &&
-        c.filters === orderedSelection[0].filters
-      ))) {
-        // Duplicate search, do not perform
-        loadingResults.value = false
-        isOpen.value = false
-        return
+  async function search(orderedSelection: ChatQuery[]): Promise<number[]> {
+    const modelId = modelStore.activeModel!.id
+    const chat = chatStore.getOrCreateChat(modelId)
+    const hops = orderedSelection.map(toHop)
+
+    // A repeated search goes back to its entry, the hops hold each event's text, index and filters
+    const hopsKey = JSON.stringify(hops)
+    const existing = chat.find((c) => (
+      c.searchType === 'temporal' &&
+      JSON.stringify(c.hops) === hopsKey &&
+      c.maxVideos === maxVideos.value &&
+      c.chainsPerVideo === chainsPerVideo.value
+    ))
+    if (existing) {
+      chatStore.currentQueryId = existing.id
+      return existing.resultIds
     }
 
-    // Implement the search logic here using the orderedSelection
-    console.log("Searching with ordered selection:", orderedSelection)
-    let reqObj : ExqTemporalSearchRequest = {
+    const reqObj: ExqTemporalSearchRequest = {
       session_info: {
-        session: useAppStore().session, 
-        modelId: modelStore.activeModel!.id,
-        collection: modelStore.getModelCollection(modelStore.activeModel!.id)
+        session: useAppStore().session,
+        modelId: modelId,
+        collection: modelStore.getModelCollection(modelId)
       },
-      n: 100,
-      hops: orderedSelection.map(toHop),
-      excluded: [],
+      n: maxVideos.value,
+      hops: hops,
+      chains_per_video: chainsPerVideo.value,
+      excluded: itemStore.getSetItems(modelId, ILSets.Excluded).map(item => item.id),
       seen: [],
     }
 
-    const chains = await searchTemporal(reqObj).then((response) => {
-      console.log("Temporal search results:", response.suggestions)
+    loadingResults.value = true
+    let chains: ExqTemporalChain[]
+    try {
+      chains = (await searchTemporal(reqObj)).suggestions
+    } finally {
       loadingResults.value = false
-      return response.suggestions
-    })
+    }
     // The grid works on item ids so the chains are flattened in rank order
     const resultIds = [...new Set(chains.flatMap(c => c.items))]
 
-    let text = orderedSelection[0].name + "," + orderedSelection[1].name
+    let text = orderedSelection[0].name + ", " + orderedSelection[1].name
     if (orderedSelection.length > 2) {
       text += ", ..."
     }
-    chat!.push({
+    chat.push({
       id: generateUniqueId(),
       name: "Temporal Search (" + text + ")",
       text: orderedSelection.map(q => q.text).join(" || "),
@@ -74,14 +85,15 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
       resultIds: resultIds,
       searchType: 'temporal',
       searchModel: 'clip',
-      filters: orderedSelection[0].filters,
-      chains: chains
+      // Each hop carries its own filters
+      filters: undefined,
+      chains: chains,
+      hops: hops,
+      maxVideos: maxVideos.value,
+      chainsPerVideo: chainsPerVideo.value
     })
-    chatStore.currentQueryId = chat![chat!.length-1].id
-    // await new Promise(resolve => setTimeout(resolve, 5000)).then(() => {
-    //     loadingResults.value = false
-    // })
-    
+    chatStore.currentQueryId = chat[chat.length - 1].id
+
     return resultIds
   }
     
@@ -89,6 +101,8 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
     isOpen,
     temporalSelection,
     loadingResults,
+    maxVideos,
+    chainsPerVideo,
     open,
     close,
     search

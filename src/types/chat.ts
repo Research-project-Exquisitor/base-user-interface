@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { ActiveFiltersDB } from "./filter"
-import type { ExqTemporalChain } from "./exq"
+import type { ExqTemporalChain, ExqTemporalHop } from "./exq"
 
 export interface ExqSearchResponse {
   suggestions: number[],
@@ -26,6 +26,9 @@ export interface ChatQuery {
   indexName?: string
   // Only on temporal entries
   chains?: ExqTemporalChain[]
+  hops?: ExqTemporalHop[]
+  maxVideos?: number
+  chainsPerVideo?: number
 }
 
 export interface AdvancedSearchPayload {

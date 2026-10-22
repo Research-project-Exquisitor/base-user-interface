@@ -105,6 +105,31 @@
 
       <v-divider />
 
+      <div class="d-flex ga-4 px-6 pt-4">
+        <v-select
+         v-model="maxVideos"
+         data-eid="temporal_dialog_sel_max_videos"
+         :items="maxVideosOptions"
+         label="Videos"
+         density="compact"
+         variant="outlined"
+         hide-details
+         class="setting-select"
+         @update:model-value="v => log('Change Temporal Max Videos', { maxVideos: v })"
+        />
+        <v-select
+         v-model="chainsPerVideo"
+         data-eid="temporal_dialog_sel_chains_per_video"
+         :items="chainsPerVideoOptions"
+         label="Chains per video"
+         density="compact"
+         variant="outlined"
+         hide-details
+         class="setting-select"
+         @update:model-value="v => log('Change Temporal Chains per Video', { chainsPerVideo: v })"
+        />
+      </div>
+
       <v-card-actions class="px-6 py-4">
         <v-btn data-eid="temporal_dialog_btn_reset" variant="text" @click="resetOrder">
           Reset order
@@ -128,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { logEvents } from '@/services/ExquisitorAPI';
+import { logEvents } from '@/services/logApi';
 import { useAppStore } from '@/stores/app';
 import { useFilterStore } from '@/stores/filter';
 import { useModelStore } from '@/stores/model';
@@ -138,7 +163,14 @@ import { ChatQuery } from '@/types/chat';
 import { storeToRefs } from 'pinia';
 
 const tempStore = useTemporalSearchStore()
-const { isOpen, temporalSelection, loadingResults } = storeToRefs(tempStore)
+const { isOpen, temporalSelection, loadingResults, maxVideos, chainsPerVideo } = storeToRefs(tempStore)
+
+const maxVideosOptions = [25, 50, 100, 200, 500]
+// The server takes -1 as every chain that survives overlap suppression
+const chainsPerVideoOptions = [
+  ...[1, 2, 3, 5, 10].map(n => ({ title: String(n), value: n })),
+  { title: 'All', value: -1 },
+]
 
 const filterStore = useFilterStore()
 const modelStore = useModelStore()
@@ -153,10 +185,10 @@ function hopIndexLabel(q: ChatQuery): string | undefined {
 
 // Value filters as "Name: a, b", ranges are not covered by toAppliedFilters
 function filterChips(q: ChatQuery): string[] {
-  const allInfos = Array.from(filterStore.filtersInfo.values()).flat()
-  const applied = filterStore.toAppliedFilters(q.filters, allInfos)
+  const infos = filterStore.filtersInfo.get(modelStore.activeModel!.id) ?? []
+  const applied = filterStore.toAppliedFilters(q.filters, infos)
   return Object.entries(applied).map(([id, values]) => {
-    const name = allInfos.find(f => f.id === Number(id))?.name ?? id
+    const name = infos.find(f => f.id === Number(id))?.name ?? id
     return `${name}: ${values.map(v => v.value).join(', ')}`
   })
 }
@@ -238,6 +270,10 @@ watch(isOpen, (newVal) => {
   border-color: rgb(var(--v-theme-primary));
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
   transform: translateY(-1px);
+}
+
+.setting-select {
+  max-width: 180px;
 }
 
 .hop-badge {
