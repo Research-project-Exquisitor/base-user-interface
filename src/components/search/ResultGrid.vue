@@ -149,7 +149,7 @@
         />
       </div>
 
-      <!-- Group-by-video view, one block per chain on temporal results -->
+      <!-- Group-by-video view, temporal results show each video's chains side by side in its row -->
       <div v-else class="group-view">
         <div v-for="block in groupBlocks" :key="block.key" class="group-block">
           <div class="d-flex align-center ga-2 mb-2">
@@ -159,32 +159,42 @@
           </div>
 
           <v-slide-group show-arrows :data-eid="`slide_group_${block.key}`">
-            <v-slide-group-item
-              v-for="id in block.ids"
-              :key="`${activeModelId}-${block.key}-${id}`"
+            <div
+              v-for="seg in block.segments"
+              :key="seg.key"
+              :data-eid="`segment_${seg.key}`"
+              class="segment"
             >
-              <div class="slide-tile" :style="slideTileStyle">
-                <ItemTile
-                  :item-id="id"
-                  :model-id="activeModelId"
-                  :item="itemsById.get(id) ?? null"
-                  :group-info="getGroupInfoForItem(id)"
-                  :tile-width="tileWidth"
-                  :aspect-ratio="aspectRatio"
-                  :btn-pos="true"
-                  :btn-neg="true"
-                  :btn-ignore="false"
-                  :btn-submit="true"
-                  :history-enabled="historyEnabled"
-                  :show-remove="true"
-                  :remove-set="removeSet(id)"
-                  :enable-hover-preview="true"
-                  @open="onOpen"
-                  @add="onAdd"
-                  @remove="onRemove"
-                />
+              <div v-if="seg.label" class="segment-label text-caption font-weight-medium">{{ seg.label }}</div>
+              <div class="d-flex">
+                <div
+                  v-for="id in seg.ids"
+                  :key="`${activeModelId}-${seg.key}-${id}`"
+                  class="slide-tile"
+                  :style="slideTileStyle"
+                >
+                  <ItemTile
+                    :item-id="id"
+                    :model-id="activeModelId"
+                    :item="itemsById.get(id) ?? null"
+                    :group-info="getGroupInfoForItem(id)"
+                    :tile-width="tileWidth"
+                    :aspect-ratio="aspectRatio"
+                    :btn-pos="true"
+                    :btn-neg="true"
+                    :btn-ignore="false"
+                    :btn-submit="true"
+                    :history-enabled="historyEnabled"
+                    :show-remove="true"
+                    :remove-set="removeSet(id)"
+                    :enable-hover-preview="true"
+                    @open="onOpen"
+                    @add="onAdd"
+                    @remove="onRemove"
+                  />
+                </div>
               </div>
-            </v-slide-group-item>
+            </div>
           </v-slide-group>
         </div>
       </div>
@@ -196,7 +206,7 @@
       <v-btn
        data-eid="load_more_btn"
        color="primary"
-       :disabled="currentQuery?.searchType === 'temporal'"
+       :disabled="currentQuery?.searchType === 'temporal' && !hasMoreTemporal"
        @click="onLoadMore"
       >
         Load More
@@ -217,6 +227,7 @@ import { useAdvancedSearchStore } from '@/stores/advancedSearch'
 import { ILSets } from '@/types/mediaitem'
 import type MediaItem from '@/types/mediaitem'
 import type { GroupMetadata } from '@/types/mediaitem'
+import type { ExqTemporalChain } from '@/types/exq'
 import { useAppStore } from '@/stores/app'
 
 const props = defineProps<{
@@ -261,7 +272,7 @@ const emit = defineEmits<{
   (e: 'open-excluded-dialog'): void
 }>()
 
-const shownIds = computed(() => modelStore.activeModel!.grid[0].items)
+const gridIds = computed(() => modelStore.activeModel!.grid[0].items)
 
 // Tile sizing
 const tileWidth = computed(() => useAppStore().globalThumbSize)
@@ -341,11 +352,38 @@ const currentQuery = computed(() =>
   chatStore.chatSessions.get(activeModelId.value)?.find((q) => q.id === chatStore.currentQueryId)
 )
 
+// Temporal results arrive all at once, Load More reveals a page of videos at a time so only those are fetched and rendered
+const TEMPORAL_PAGE_SIZE = 20
+const temporalVideosShown = ref(TEMPORAL_PAGE_SIZE)
+
+// The server orders videos by their best chain, the map keeps that order
+const temporalVideos = computed(() => {
+  const chains = currentQuery.value?.chains
+  if (!chains) return null
+  const byVideo = new Map<number, ExqTemporalChain[]>()
+  for (const c of chains) {
+    const bucket = byVideo.get(c.group) ?? []
+    bucket.push(c)
+    byVideo.set(c.group, bucket)
+  }
+  return Array.from(byVideo, ([group, videoChains]) => ({ group, chains: videoChains }))
+})
+
+const shownTemporalVideos = computed(() => temporalVideos.value?.slice(0, temporalVideosShown.value) ?? null)
+const hasMoreTemporal = computed(() => (temporalVideos.value?.length ?? 0) > temporalVideosShown.value)
+
+const shownIds = computed(() => {
+  const videos = shownTemporalVideos.value
+  if (!videos) return gridIds.value
+  return [...new Set(videos.flatMap(v => v.chains.flatMap(c => c.items)))]
+})
+
 // Temporal results open in the chain view and the earlier setting comes back for other searches
 let groupViewBefore: boolean | null = null
 watch(
   () => currentQuery.value?.id,
   () => {
+    temporalVideosShown.value = TEMPORAL_PAGE_SIZE
     if (currentQuery.value?.searchType === 'temporal') {
       if (groupViewBefore === null) groupViewBefore = groupView.value
       groupView.value = true
@@ -356,28 +394,33 @@ watch(
   }
 )
 
+// m:ss below an hour and h:mm:ss from there on
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000)
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const ss = String(s % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`
 }
 
-// Temporal results get a block per chain so a video can show up more than once
+// Temporal results get a segment per chain in their video's block, other results one unlabelled segment per video
 const groupBlocks = computed(() => {
-  const chains = currentQuery.value?.chains
-  if (chains) {
-    return chains.map((c, i) => {
-      const video = itemsById.get(c.items[0])?.groupKey || c.group
-      return {
-        key: `chain_${i}`,
-        label: `Video ${video} · ${formatMs(c.start_ms)}–${formatMs(c.end_ms)}`,
+  const videos = shownTemporalVideos.value
+  if (videos) {
+    return videos.map(({ group, chains: videoChains }) => ({
+      key: `video_${group}`,
+      label: `Video ${itemsById.get(videoChains[0].items[0])?.groupKey || group}`,
+      segments: videoChains.map((c, i) => ({
+        key: `chain_${group}_${i}`,
+        label: `${formatMs(c.start_ms)}–${formatMs(c.end_ms)}`,
         ids: c.items,
-      }
-    })
+      })),
+    }))
   }
   return groupOrder.value.map((groupId) => ({
     key: String(groupId),
     label: `Video ${groupLabel(groupId)}`,
-    ids: groups.get(groupId) ?? [],
+    segments: [{ key: String(groupId), label: null, ids: groups.get(groupId) ?? [] }],
   }))
 })
 
@@ -469,7 +512,12 @@ function openAdvancedFromRF() {
   })
 }
 
+// Temporal pages come from the chains already loaded, other searches ask the server for more
 function onLoadMore() {
+  if (currentQuery.value?.searchType === 'temporal') {
+    temporalVideosShown.value += TEMPORAL_PAGE_SIZE
+    return
+  }
   emit('load-more')
 }
 
@@ -546,6 +594,18 @@ function onRemove(payload: { itemId: number; set: ILSets }) {
 
 .slide-tile {
   margin-right: 8px;
+}
+
+/* Later chains of a video get a divider on their left */
+.segment + .segment {
+  border-left: 1px solid rgba(var(--v-theme-on-surface), 0.2);
+  padding-left: 8px;
+}
+
+.segment-label {
+  margin-bottom: 4px;
+  opacity: 0.8;
+  white-space: nowrap;
 }
 
 .result-actions {
