@@ -178,7 +178,6 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useTheme } from 'vuetify'
 import { useModelStore } from '@/stores/model'
 import EditTextField from '@/components/general/EditTextField.vue'
 import { logEvents, submitAnswer } from '@/services/ExquisitorAPI'
@@ -188,7 +187,6 @@ import { ResourceValues } from '@/types/model'
 
 const modelStore = useModelStore()
 const appStore = useAppStore()
-const vuetifyTheme = useTheme()
 
 const activeModel = computed(() => modelStore.activeModel)
 
@@ -196,16 +194,6 @@ const dialog = ref(false)
 const tab = ref<'general'|'model'|'competition'>('general')
 
 const themePresets = ['light', 'graphiteDark', 'softDark']
-
-// apply theme changes
-watch(
-  () => appStore.themeId,
-  () => {
-    if (appStore.themeId === 'light') vuetifyTheme.global.name.value = 'light'
-    else vuetifyTheme.global.name.value = appStore.themeId
-  },
-  { immediate: true }
-)
 
 // Model settings local fields
 const itemsToShow = ref<number>(50)

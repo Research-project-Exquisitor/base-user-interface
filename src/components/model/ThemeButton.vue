@@ -93,7 +93,7 @@ function onClick(e: MouseEvent) {
 
 watch(
   () => appStore.themeId,
-  () => { vuetifyTheme.global.name.value = appStore.themeId },
+  () => vuetifyTheme.change(appStore.themeId),
   { immediate: true }
 )
 </script>
