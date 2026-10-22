@@ -43,14 +43,21 @@
                   {{ item.searchType.toUpperCase() }}
                 </v-chip>
 
-                <v-chip :size="chipSize" label variant="tonal" :data-eid="eid(`chip_model_${item.id}`)">
+                <!-- Temporal results rank by RRF over each event's ranks, the models behind them don't describe the search -->
+                <v-chip
+                 v-if="item.searchType !== 'temporal'"
+                 :size="chipSize"
+                 label
+                 variant="tonal"
+                 :data-eid="eid(`chip_model_${item.id}`)"
+                >
                   {{ modelChipText(item) }}
                 </v-chip>
 
                 <div :class="[metaTextClass, 'd-flex align-center ga-2']" :data-eid="eid(`filters_${item.id}`)">
                   <span>Filters ·</span>
 
-                  <template v-if="filterCount(item.filters) === 0">
+                  <template v-if="filterCount(item) === 0">
                     <span>None</span>
                   </template>
 
@@ -64,12 +71,12 @@
                          label
                          variant="tonal"
                         >
-                          {{ filterCount(item.filters) }}
+                          {{ filterCount(item) }}
                         </v-chip>
                       </template>
 
                       <div class="filter-tooltip">
-                        {{ filterTooltipText(item.filters) }}
+                        {{ filterTooltipText(item) }}
                       </div>
                     </v-tooltip>
                   </template>
@@ -77,8 +84,8 @@
               </div>
 
               <div class="row-actions"> 
-                <!-- Image and RF items will become selectable for temporal search later -->
-                <template v-if="props.temporalMode && item.searchType !== 'image'">
+                <!-- Image and RF items will become selectable for temporal search later, temporal items can't be nested -->
+                <template v-if="props.temporalMode && item.searchType !== 'image' && item.searchType !== 'temporal'">
                   <v-tooltip
                     :text="isSelected(item) ? 'Remove from Temporal Search' : 'Add to Temporal Search'"
                     :open-delay="500"
@@ -103,7 +110,14 @@
                     </template>
                   </v-tooltip>
                 </template>
-                <v-tooltip text="Open in Advanced Search" :open-delay="450" :close-delay="150" location="top">
+                <!-- Advanced search has no temporal form, it would add an entry without results -->
+                <v-tooltip
+                  v-if="item.searchType !== 'temporal'"
+                  text="Open in Advanced Search"
+                  :open-delay="450"
+                  :close-delay="150"
+                  location="top"
+                >
                   <template #activator="{ props: tipProps }">
                     <v-btn
                      v-bind="tipProps"
@@ -157,7 +171,7 @@ const indexStore = useSearchIndexStore()
 const collection = computed(() => modelStore.getModelCollection(props.modelId))
 onMounted(() => indexStore.load(collection.value))
 
-// Text searches show their index, image and temporal entries keep the search model
+// Text searches show their index, image entries keep the search model
 function modelChipText(q: ChatQuery): string {
   if (q.searchType === 'text') {
     const label = indexStore.indexLabel(collection.value, q.indexName) ?? q.indexName
@@ -215,9 +229,13 @@ function countLeaves(node: FilterExpr): number {
   return node.children.reduce((sum, child) => sum + countLeaves(child), 0)
 }
 
-function filterCount(filters: ActiveFiltersDB | undefined): number {
-  if (!filters?.root) return 0
-  return countLeaves(filters.root)
+// Temporal entries keep filters on each hop, other entries and older temporal ones on the entry itself
+function entryFilters(q: ChatQuery): (ActiveFiltersDB | undefined)[] {
+  return q.hops ? q.hops.map(h => h.filters) : [q.filters]
+}
+
+function filterCount(q: ChatQuery): number {
+  return entryFilters(q).reduce((sum, f) => sum + (f?.root ? countLeaves(f.root) : 0), 0)
 }
 
 function filterValueName(id: number, valueId: number): string {
@@ -247,11 +265,18 @@ function collectLeafBlocks(node: FilterExpr, blocks: string[]): void {
   }
 }
 
-function filterTooltipText(filters: ActiveFiltersDB | undefined): string {
-  if (!filters?.root || filterCount(filters) === 0) return 'No filters'
-  const blocks: string[] = []
-  collectLeafBlocks(filters.root, blocks)
-  return blocks.length ? blocks.join('\n\n') : 'No filters'
+// Temporal entries list each event's filters under its number and skip events without any
+function filterTooltipText(q: ChatQuery): string {
+  const sections: string[] = []
+  entryFilters(q).forEach((filters, i) => {
+    if (!filters?.root) return
+    const blocks: string[] = []
+    collectLeafBlocks(filters.root, blocks)
+    if (blocks.length === 0) return
+    const body = blocks.join('\n\n')
+    sections.push(q.hops ? `Event ${i + 1}\n${body}` : body)
+  })
+  return sections.length ? sections.join('\n\n') : 'No filters'
 }
 
 function isSelected(q: ChatQuery) {
