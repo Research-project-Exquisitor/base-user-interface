@@ -177,7 +177,8 @@ export const useItemStore = defineStore('item', () => {
   
   function removeModelFromItems(modelId: number) : void {
     const collection = modelStore.getModelCollection(modelId)
-    items.get(collection)!.forEach(item => item.currentSets!.delete(modelId))
+    // The collection has no cache until items from it are loaded
+    items.get(collection)?.forEach(item => item.currentSets!.delete(modelId))
   }
   
   function isItemInPos(itemId: number, modelId: number) : boolean {

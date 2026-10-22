@@ -419,6 +419,8 @@ async function searchInVideo() {
   const text = videoQuery.value?.trim()
   if (!text) return clearVideoSearch()
 
+  // Waits for the tab's filters in case they're still loading
+  await filterStore.loadFilters(appStore.session, activeModelId.value)
   const filters = videoFilter()
   if (!filters) {
     useErrorStore().show(`Cannot search in this video, no ${itemStore.groupKey} filter value for "${videoId.value}".`)

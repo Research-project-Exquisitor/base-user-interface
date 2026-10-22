@@ -47,34 +47,57 @@ export const useFilterStore = defineStore('filter', () => {
 
   // Load filters
 
+  // One load per collection, so tabs on the same collection share its filter list and values
+  const collectionLoads = new Map<string, Promise<FilterInfo[]>>()
+
+  // A tab's entry is only set once its filters and values are loaded. Callers during a load wait on it
   async function loadFilters(session: string, modelId: number) {
-    // console.log('loadFilters('+modelId+')')
     if (filtersInfo.has(modelId)) return
 
-    filtersInfo.set(modelId, [])
-    let collection = useModelStore().getModelCollection(modelId)
-    await getFiltersInfo(session, collection)
-    .then((resp: FilterInfo[]) => {
-      resp.forEach((f) => {
-        if (!filterNameIdMap.has(collection)) {
-          filterNameIdMap.set(collection, new Map<string, number>())
-        }
-        if (!filterNameIdMap.get(collection)!.has(f.name)) {
-          filterNameIdMap.get(collection)!.set(f.name, f.id)
-        }
-        if (nonFilterTagsets.find((t) => t === f.name) === undefined
-        && !filtersInfo.get(modelId)!.find((existingF) => existingF.id === f.id)
-        && !f.name.includes('JSON') && !f.name.includes('Index')) {
-          filtersInfo.get(modelId)!.push(f)
-        }
+    const collection = useModelStore().getModelCollection(modelId)
+    let load = collectionLoads.get(collection)
+    if (!load) {
+      load = fetchCollectionFilters(session, collection)
+      collectionLoads.set(collection, load)
+      // Forget a failed load so the next call tries again
+      load.catch(() => {
+        if (collectionLoads.get(collection) === load) collectionLoads.delete(collection)
       })
+    }
+    const list = await load
+    // The collection was released while loading, so its last tab is closed
+    if (collectionLoads.get(collection) !== load) return
+    filtersInfo.set(modelId, list)
+    filtersLoaded.value = true
+  }
+
+  async function fetchCollectionFilters(session: string, collection: string): Promise<FilterInfo[]> {
+    const resp = await getFiltersInfo(session, collection)
+    if (!filterNameIdMap.has(collection)) {
+      filterNameIdMap.set(collection, new Map<string, number>())
+    }
+    const nameIds = filterNameIdMap.get(collection)!
+    const list: FilterInfo[] = []
+    resp.forEach((f) => {
+      if (!nameIds.has(f.name)) nameIds.set(f.name, f.id)
+      if (!nonFilterTagsets.includes(f.name)
+      && !list.find((existingF) => existingF.id === f.id)
+      && !f.name.includes('JSON') && !f.name.includes('Index')) {
+        list.push(f)
+      }
     })
-    // forEach would not wait for the values, so filtersLoaded was set before they arrived
-    await Promise.all(filtersInfo.get(modelId)!.map(async (f) => {
+    await Promise.all(list.map(async (f) => {
       f.values = await getFilterValues(session, collection, f.tagtypeId, f.id)
     }))
-    console.log(filtersInfo.get(modelId)!)
-    filtersLoaded.value = true
+    return list
+  }
+
+  // Drops a closed tab's entry, and the collection's list once no open tab uses it
+  function releaseFilters(modelId: number, collection: string) {
+    filtersInfo.delete(modelId)
+    if (!useModelStore().models.some(m => m.collection === collection)) {
+      collectionLoads.delete(collection)
+    }
   }
 
   // Builders
@@ -193,6 +216,7 @@ export const useFilterStore = defineStore('filter', () => {
     isMain,
     isGroup,
     loadFilters,
+    releaseFilters,
     toAppliedFilters,
     makeValueLeaf,
     makeRangeLeaf,

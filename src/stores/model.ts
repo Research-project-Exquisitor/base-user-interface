@@ -6,6 +6,7 @@ import Model, { Settings, ResourceValues, GridGroup } from '@/types/model'
 import { ExqRFRequest } from '@/types/exq'
 import { searchRF, initModel, removeModel } from '@/services/ExquisitorAPI'
 import { useFeedbackStore } from './feedback'
+import { useFilterStore } from './filter'
 import { useItemStore } from './item'
 import { ILSets } from '@/types/mediaitem'
 
@@ -60,6 +61,9 @@ export const useModelStore = defineStore('model', () => {
     })
     activeModel.value = models[models.length-1]
     useFeedbackStore().getOrCreateRF(activeModel.value!.id)
+    // The viewer and search history need the tab's filters before the advanced search is opened
+    useFilterStore().loadFilters(session, mid)
+      .catch(err => console.error('Failed to load filters:', err))
   }
   
   function deleteModel(session: string, model: Model) : void {
@@ -71,6 +75,8 @@ export const useModelStore = defineStore('model', () => {
         activeModel.value = models[indx+1]
     }
     let m : Model = models.splice(indx, 1)[0]
+    // After the splice, so this tab no longer counts as using the collection
+    useFilterStore().releaseFilters(m.id, m.collection)
     removeModel({ session: session, modelId: model.id, collection: m.collection })
     console.log('Removed Model:', m.id)
   }
