@@ -286,7 +286,7 @@ watch(allIds, () => {
 
 onBeforeUnmount(() => loadCtrl.abort())
 
-// Fetches base info for IDs not cached yet. The store dedupes and caps concurrency
+// Fetches base info for IDs not cached yet. The store skips ids it has or is loading and fetches the rest in one request
 function ensureLoaded(ids: number[]) {
   if (ids.length === 0) return
   itemStore.fetchMediaItems(ids, props.modelId, collection.value, loadCtrl.signal)

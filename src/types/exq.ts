@@ -131,6 +131,12 @@ export interface ExqGetItemResponse {
   metadata?: Record<string, number | string | (number | string)[]>
 }
 
+// /exq/item/info/batch, ids the collection doesn't have are listed under missing
+export interface ExqGetItemsResponse {
+  items: ExqGetItemResponse[]
+  missing: number[]
+}
+
 export interface ExqGetFiltersInfoResponse {
   filters : FilterInfo[]
 }

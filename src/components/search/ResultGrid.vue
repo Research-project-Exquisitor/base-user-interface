@@ -433,15 +433,13 @@ async function prefetchShownItems(ids: number[]) {
   const missing = ids.filter((id) => !itemsById.has(id))
   if (missing.length === 0) return
 
-  const fetched = await Promise.all(missing.map((id) => itemStore.fetchMediaItem(id, activeModelId.value)))
+  // One batch request for all of them, ids the collection doesn't have are left out
+  const fetched = await itemStore.fetchMediaItems(missing, activeModelId.value, collection.value)
   for (const it of fetched) itemsById.set(it.id, it)
 }
 
 /**
- * Prefetch GroupMetadata for all groupIds in the currently shown items.
- *
- * IMPORTANT FUTURE UPDATE (batch GroupMetadata):
- * groupStore.fetchGroupsInfo has a TODO to replace Promise.all with ONE API call when added.
+ * Prefetch GroupMetadata for all groupIds in the currently shown items, in one batch request.
  */
 async function prefetchGroupsFromItems(ids: number[]) {
   const groupIds: number[] = []

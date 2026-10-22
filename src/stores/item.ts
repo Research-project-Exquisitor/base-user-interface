@@ -4,7 +4,7 @@ import { GroupMetadata, ILSets, } from "@/types/mediaitem";
 import type MediaItem from "@/types/mediaitem";
 import { defineStore } from "pinia";
 import { reactive, ref } from "vue";
-import { getItem, getRelatedItems } from "@/services/ExquisitorAPI";
+import { getItem, getItems, getRelatedItems } from "@/services/itemApi";
 import { useAppStore } from "@/stores/app";
 import { useModelStore } from "./model";
 import { useFilterStore } from "./filter";
@@ -33,7 +33,7 @@ export const useItemStore = defineStore('item', () => {
   const appStore = useAppStore()
 
   // In-flight requests keyed by `${collection}/${itemId}`, so concurrent callers share one request
-  const inflightBase = new Map<string, Promise<MediaItem>>()
+  const inflightBase = new Map<string, Promise<MediaItem | undefined>>()
   const inflightInfo = new Map<string, Promise<Metadata>>()
 
   // Item tagset whose value labels an item's group. All items of a group share it
@@ -50,48 +50,44 @@ export const useItemStore = defineStore('item', () => {
     itemIds.forEach(id => tracked.add(id))
   }
 
-  async function fetchMediaItem(itemId: number, modelId: number) : Promise<MediaItem> {
-    const collection = modelStore.getModelCollection(modelId)
-    const [item] = await fetchMediaItems([itemId], modelId, collection)
-    return item
-  }
-
-  // Base info for many items. Aborting the signal cancels the running requests,
-  // for example when the viewer switches to another video.
+  // Base info for many items in one request, ids the collection doesn't have are left out of the result.
+  // Aborting the signal cancels the running request, for example when the viewer switches to another video.
   async function fetchMediaItems(itemIds: number[], modelId: number, collection: string, signal?: AbortSignal) : Promise<MediaItem[]> {
     const colMap = collectionMap(collection)
     trackModelItems(modelId, itemIds)
 
-    const missing = itemIds.filter(id => !colMap.has(id))
-    if (missing.length > 0) {
-      // TODO (future batch endpoint) Replace with a single API call for all ids
-      await Promise.all(missing.map(id => loadBaseItem(id, modelId, collection, signal)))
-    }
+    const toLoad = [...new Set(itemIds)].filter(id => !colMap.has(id) && !inflightBase.has(`${collection}/${id}`))
+    if (toLoad.length > 0) loadBaseItems(toLoad, modelId, collection, signal)
+
+    // Ids an earlier call is already loading wait on that call's request
+    await Promise.all(itemIds.map(id => inflightBase.get(`${collection}/${id}`)))
 
     for (const id of itemIds) ensureItemSetEntry(id, modelId)
-    return itemIds.map(id => colMap.get(id)!)
+    return itemIds.flatMap(id => colMap.get(id) ?? [])
   }
 
-  function loadBaseItem(itemId: number, modelId: number, collection: string, signal?: AbortSignal): Promise<MediaItem> {
-    const key = `${collection}/${itemId}`
-    let p = inflightBase.get(key)
-    if (!p) {
-      const filterIds = filterStore.tagsetIds(collection, [groupKey.value])
-      p = getItem(appStore.session, itemId, modelId, collection, { filterIds, signal })
-        .then(it => {
+  // Every id is marked in flight with a promise on the one batch request
+  function loadBaseItems(itemIds: number[], modelId: number, collection: string, signal?: AbortSignal) {
+    const filterIds = filterStore.tagsetIds(collection, [groupKey.value])
+    const batch = getItems(appStore.session, itemIds, modelId, collection, { filterIds, signal })
+      .then(({ items: loaded, missing }) => {
+        if (missing.length > 0) console.warn(`Items not found in ${collection}`, missing)
+        const colMap = collectionMap(collection)
+        for (const it of loaded) {
           // Keep only the group key, since metadata being set means all item tagsets are loaded
           const val = it.metadata?.[groupKey.value]
           if (val != null && val !== '') it.groupKey = Array.isArray(val) ? val.join(', ') : String(val)
           delete it.metadata
-          const colMap = collectionMap(collection)
           // Keep the cached item if its metadata arrived while this was in flight
-          if (!colMap.has(itemId)) colMap.set(itemId, it)
-          return colMap.get(itemId)!
-        })
-        .finally(() => inflightBase.delete(key))
-      inflightBase.set(key, p)
+          if (!colMap.has(it.id)) colMap.set(it.id, it)
+        }
+      })
+      .finally(() => {
+        for (const id of itemIds) inflightBase.delete(`${collection}/${id}`)
+      })
+    for (const id of itemIds) {
+      inflightBase.set(`${collection}/${id}`, batch.then(() => collectionMap(collection).get(id)))
     }
-    return p
   }
   
   function ensureItemSetEntry(exqId: number, modelId: number) {
@@ -350,7 +346,6 @@ export const useItemStore = defineStore('item', () => {
     modelItems,
     selectionFailed,
     groupKey,
-    fetchMediaItem,
     fetchMediaItems, 
     addItemToSet, 
     addItemsToSet, 
