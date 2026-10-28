@@ -21,14 +21,14 @@ export function logEvent(
     nextSequence = 0
   }
   const event: ClientLogEvent = {
-    v: 1,
-    event_id: crypto.randomUUID(),
-    source: 'client',
-    session_id: session,
-    time: { client: Date.now() },
-    sequence: nextSequence++,
     type,
     target,
+    source: 'client',
+    time: { client: Date.now() },
+    sequence: nextSequence++,
+    session_id: session,
+    event_id: crypto.randomUUID(),
+    v: 1,
     // Snapshot mutable inputs (seen lists, filters, results) at capture time.
     data: JSON.parse(JSON.stringify(data)),
   }

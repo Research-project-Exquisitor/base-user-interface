@@ -14,24 +14,24 @@ export type EventType =
 export type EventTarget = 'session' | 'search' | 'result' | 'results' | 'filter' | 'video' | 'answer'
 
 export interface LogEvent {
-  v?: 1
-  event_id?: string
-  source: 'client' | 'server'
-  user_id?: string | null
-  session_id: string
-  task_id?: string | null
-  time: { client?: number | null; server?: number | null }
-  sequence: number
   type: EventType
   target: EventTarget
+  source: 'client' | 'server'
+  time: { client?: number | null; server?: number | null }
+  sequence: number
+  session_id: string
+  user_id?: string | null
+  task_id?: string | null
+  event_id?: string
+  v?: 1
   data?: Record<string, unknown>
 }
 
 // Every event produced by the UI has an ID and a client timestamp.
 export type ClientLogEvent = LogEvent & {
-  v: 1
-  event_id: string
   source: 'client'
   time: { client: number }
+  event_id: string
+  v: 1
   data: Record<string, unknown>
 }
