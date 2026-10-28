@@ -13,6 +13,7 @@ export function logEvent(
   type: EventType,
   target: EventTarget,
   data: Record<string, unknown>,
+  requestId?: string,
 ): ClientLogEvent | undefined {
   const session = getSessionId()
   if (mock || !session) return undefined
@@ -26,6 +27,7 @@ export function logEvent(
     source: 'client',
     time: { client: Date.now() },
     sequence: nextSequence++,
+    request_id: requestId,
     session_id: session,
     event_id: crypto.randomUUID(),
     v: 1,

@@ -531,9 +531,8 @@ function onOpen(itemId: number) {
     collection: collection.value,
     model_id: activeModelId.value,
     query_id: matchesQuery ? query.id : undefined,
-    request_id: matchesQuery ? query.researchRequestIds?.[itemId] : undefined,
     surface: 'result_grid',
-  })
+  }, matchesQuery ? query.researchRequestIds?.[itemId] : undefined)
   emit('selected', itemId)
 }
 

@@ -19,6 +19,7 @@ export interface LogEvent {
   source: 'client' | 'server'
   time: { client?: number | null; server?: number | null }
   sequence: number
+  request_id?: string | null
   session_id: string
   user_id?: string | null
   task_id?: string | null

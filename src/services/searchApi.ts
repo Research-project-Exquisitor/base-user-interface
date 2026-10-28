@@ -39,26 +39,23 @@ export const searchText = async (req: ExqTextSearchRequest): Promise<ExqSearchRe
     const headers = exqHeaders()
     const requestId = headers['X-Exq-Request-Id']
     const submission = logEvent('query_submission', 'search', {
-        request_id: requestId,
         endpoint: path,
         request: body,
-    })
+    }, requestId)
     if (submission) headers['X-Exq-Event-Sequence'] = String(submission.sequence)
     try {
         const result = await post<ExqSearchResponse>(path, body, undefined, headers)
         logEvent('query_response_received', 'search', {
-            request_id: requestId,
             collection: body.session_info.collection,
             model_id: body.session_info.modelId,
             suggestions: result.suggestions,
-        })
+        }, requestId)
         return { ...result, request_id: requestId }
     } catch (error) {
         logEvent('error', 'search', {
-            request_id: requestId,
             endpoint: path,
             message: error instanceof Error ? error.message : String(error),
-        })
+        }, requestId)
         throw error
     }
 }
