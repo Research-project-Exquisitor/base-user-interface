@@ -5,6 +5,7 @@ import type { ExqTemporalChain, ExqTemporalHop } from "./exq"
 
 export interface ExqSearchResponse {
   suggestions: number[],
+  request_id?: string,
 }
 
 export interface ExqQueryRewriteResponse {
@@ -21,6 +22,8 @@ export interface ChatQuery {
   searchModel: string
   timestamp: number
   resultIds: number[]
+  // Retains the producing request for each page, including after load-more.
+  researchRequestIds?: Record<number, string>
   filters: ActiveFiltersDB | undefined
   // Set by the index dropdown once it exists, the server default is used otherwise
   indexName?: string

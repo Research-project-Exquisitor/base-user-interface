@@ -229,6 +229,7 @@ import type MediaItem from '@/types/mediaitem'
 import type { GroupMetadata } from '@/types/mediaitem'
 import type { ExqTemporalChain } from '@/types/exq'
 import { useAppStore } from '@/stores/app'
+import { logEvent } from '@/services/researchLog'
 
 const props = defineProps<{
   modelId: number,
@@ -520,6 +521,19 @@ function onLoadMore() {
 }
 
 function onOpen(itemId: number) {
+  // History or feedback can change the grid independently of the selected
+  // chat query. Only claim a producing request when that result list matches.
+  const query = currentQuery.value
+  const matchesQuery = query && gridIds.value.length === query.resultIds.length
+    && gridIds.value.every((id, index) => id === query.resultIds[index])
+  logEvent('result_click', 'result', {
+    item_id: itemId,
+    collection: collection.value,
+    model_id: activeModelId.value,
+    query_id: matchesQuery ? query.id : undefined,
+    request_id: matchesQuery ? query.researchRequestIds?.[itemId] : undefined,
+    surface: 'result_grid',
+  })
   emit('selected', itemId)
 }
 

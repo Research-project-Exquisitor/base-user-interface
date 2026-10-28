@@ -101,6 +101,9 @@ export const useChatStore = defineStore('chat', () => {
         text: query,
         timestamp: Date.now(),
         resultIds: resultIds.suggestions,
+        researchRequestIds: resultIds.request_id
+          ? Object.fromEntries(resultIds.suggestions.map(id => [id, resultIds.request_id!]))
+          : undefined,
         searchType: searchType,
         searchModel: searchModel,
         filters: activeFilters
@@ -116,6 +119,14 @@ export const useChatStore = defineStore('chat', () => {
         chatSessions.get(modelId)![qIdx].resultIds = resultIds.suggestions
       }
       chatSessions.get(modelId)![qIdx].filters = activeFilters
+      const entry = chatSessions.get(modelId)![qIdx]
+      if (refresh) entry.researchRequestIds = {}
+      if (resultIds.request_id) {
+        entry.researchRequestIds = {
+          ...entry.researchRequestIds,
+          ...Object.fromEntries(resultIds.suggestions.map(id => [id, resultIds.request_id!])),
+        }
+      }
       return chatSessions.get(modelId)![qIdx].resultIds
     }
   }
