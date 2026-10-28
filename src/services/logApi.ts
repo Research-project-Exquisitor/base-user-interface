@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { getMainURI, mock } from './http'
+import { exqHeaders, getMainURI, mock } from './http'
 
 export const logEvents = (events: ClientEvent[]): void => {
     if (mock) return
     console.log('Logging events:', events)
+    // sendBeacon cannot set headers, so these requests reach the server without
+    // the session and request ID headers; each event carries its session instead.
     if (navigator.sendBeacon) {
         const blob = new Blob([JSON.stringify(events)], { type: 'application/json' })
         navigator.sendBeacon(getMainURI() + '/exq/log/clientEvent', blob)
@@ -14,7 +16,7 @@ export const logEvents = (events: ClientEvent[]): void => {
     fetch(getMainURI() + '/exq/log/clientEvent', {
         method: 'POST',
         mode: 'cors',
-        headers: { 'Content-Type': 'application/json' },
+        headers: exqHeaders(),
         body: JSON.stringify(events),
     }).then()
 }

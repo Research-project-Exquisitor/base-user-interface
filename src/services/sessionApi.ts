@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { ExqInitResponse, ExqSessionInfo } from '@/types/exq'
-import { exqURI, get, mock, post } from './http'
+import { exqURI, get, mock, post, setSessionId } from './http'
 import {
     initSession as mockInitExq,
 } from './MockExquisitorAPI'
@@ -18,6 +18,7 @@ function generateString(length: number): string {
 export const initSession = async (): Promise<ExqInitResponse> => {
     if (mock) return mockInitExq()
     const session = generateString(10)
+    setSessionId(session)
     const resp = await get<{ session: string; totalItems: number[]; collections: string[] }>(
         '/exq/init/' + session
     )
