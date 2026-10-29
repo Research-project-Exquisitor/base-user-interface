@@ -37,6 +37,7 @@ export interface ExqRFRequest {
 
 export interface ExqRFResponse {
   suggestions : number[]
+  request_id?: string
 }
 
 export interface ExqTextSearchRequest {

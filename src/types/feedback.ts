@@ -7,4 +7,5 @@ export interface RFSession {
   negatives: number[]
   filters: ActiveFiltersDB | undefined
   resultIds: number[]
+  resultRequestIds?: Record<number, string>
 }

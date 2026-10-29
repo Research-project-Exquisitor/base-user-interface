@@ -19,7 +19,7 @@ const queryRewriteURI = 'http://mandla-1:5001'
 
 export const searchRF = async (req: ExqRFRequest): Promise<ExqRFResponse> => {
     if (mock) return mockDoURF(req)
-    return post('/exq/search/rf', req)
+    return postSearch('/exq/search/rf', req)
 }
 
 export const searchText = async (req: ExqTextSearchRequest): Promise<ExqSearchResponse> => {
@@ -33,9 +33,16 @@ export const searchText = async (req: ExqTextSearchRequest): Promise<ExqSearchRe
     if (search_model === 'caption') path = '/exq/search/caption'
     else if (search_model === 'aggregate') path = '/exq/search/aggregate'
     console.log('Search object', body)
-    // First Phase 3 slice: the implemented CLIP/text endpoints. Other search
-    // families remain on the legacy logger until their producers are migrated.
     if (path !== '/exq/search/clip' && path !== '/exq/search/text') return post(path, body)
+    return postSearch(path, body)
+}
+
+// Shared event capture for migrated searches. Keep transport and correlation
+// consistent across CLIP/text and RF without changing other search families.
+async function postSearch(
+    path: string,
+    body: ExqTextSearchRequest | ExqRFRequest,
+): Promise<ExqSearchResponse> {
     const headers = exqHeaders()
     const requestId = headers['X-Exq-Request-Id']
     const submission = logEvent('query_submission', 'search', {
