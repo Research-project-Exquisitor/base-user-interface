@@ -63,7 +63,6 @@ export const useFeedbackStore = defineStore('feedback', () => {
     } else {
       rfSearch.positives = pos
       rfSearch.negatives = neg
-      rfSearch.resultIds = []
     }
     let hist:number[] = []
     hist.push(...pos)
