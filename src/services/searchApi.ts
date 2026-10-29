@@ -38,11 +38,11 @@ export const searchText = async (req: ExqTextSearchRequest): Promise<ExqSearchRe
 }
 
 // Shared event capture for migrated searches. Keep transport and correlation
-// consistent across CLIP/text and RF without changing other search families.
-async function postSearch(
+// consistent across search families; unmigrated endpoints keep calling post().
+async function postSearch<T extends { suggestions: unknown[] }>(
     path: string,
-    body: ExqTextSearchRequest | ExqRFRequest,
-): Promise<ExqSearchResponse> {
+    body: ExqTextSearchRequest | ExqRFRequest | ExqTemporalSearchRequest,
+): Promise<T & { request_id?: string }> {
     const headers = exqHeaders()
     const requestId = headers['X-Exq-Request-Id']
     const submission = logEvent('query_submission', 'search', {
@@ -51,7 +51,7 @@ async function postSearch(
     }, requestId)
     if (submission) headers['X-Exq-Event-Sequence'] = String(submission.sequence)
     try {
-        const result = await post<ExqSearchResponse>(path, body, undefined, headers)
+        const result = await post<T>(path, body, undefined, headers)
         logEvent('query_response_received', 'search', {
             collection: body.session_info.collection,
             model_id: body.session_info.modelId,
@@ -82,7 +82,7 @@ export const searchTemporal = async (req: ExqTemporalSearchRequest): Promise<Exq
             { group: 3, items: [40, 42, 45], length: 3, score: 0.5, start_ms: 120000, end_ms: 138000 },
         ]
     }
-    return post('/exq/search/temporal', req)
+    return postSearch('/exq/search/temporal', req)
 }
 
 export const searchQueryRewrite = async (req: ExqQueryRewriteRequest): Promise<ExqQueryRewriteResponse> => {

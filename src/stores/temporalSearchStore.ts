@@ -65,8 +65,11 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
 
     loadingResults.value = true
     let chains: ExqTemporalChain[]
+    let requestId: string | undefined
     try {
-      chains = (await searchTemporal(reqObj)).suggestions
+      const response = await searchTemporal(reqObj)
+      chains = response.suggestions
+      requestId = response.request_id
     } finally {
       loadingResults.value = false
     }
@@ -83,6 +86,9 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
       text: orderedSelection.map(q => q.text).join(" || "),
       timestamp: Date.now(),
       resultIds: resultIds,
+      resultRequestIds: requestId
+        ? Object.fromEntries(resultIds.map(id => [id, requestId!]))
+        : undefined,
       searchType: 'temporal',
       searchModel: 'clip',
       // Each hop carries its own filters

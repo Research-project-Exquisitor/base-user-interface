@@ -99,6 +99,7 @@ export interface ExqTemporalChain {
 
 export interface ExqTemporalSearchResponse {
   suggestions: ExqTemporalChain[]
+  request_id?: string
 }
 
 export type ExqTemporalHop =
