@@ -526,13 +526,18 @@ function onOpen(itemId: number) {
   const query = currentQuery.value
   const matchesQuery = query && gridIds.value.length === query.resultIds.length
     && gridIds.value.every((id, index) => id === query.resultIds[index])
+  const feedback = feedbackStore.getOrCreateRF(activeModelId.value)
+  const matchesFeedback = !matchesQuery && gridIds.value.length === feedback.resultIds.length
+    && gridIds.value.every((id, index) => id === feedback.resultIds[index])
+  const requestId = matchesQuery ? query.resultRequestIds?.[itemId]
+    : matchesFeedback ? feedback.resultRequestIds?.[itemId] : undefined
   logEvent('result_click', 'result', {
     item_id: itemId,
     collection: collection.value,
     model_id: activeModelId.value,
     query_id: matchesQuery ? query.id : undefined,
     surface: 'result_grid',
-  }, matchesQuery ? query.researchRequestIds?.[itemId] : undefined)
+  }, requestId)
   emit('selected', itemId)
 }
 

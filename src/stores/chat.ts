@@ -101,7 +101,7 @@ export const useChatStore = defineStore('chat', () => {
         text: query,
         timestamp: Date.now(),
         resultIds: resultIds.suggestions,
-        researchRequestIds: resultIds.request_id
+        resultRequestIds: resultIds.request_id
           ? Object.fromEntries(resultIds.suggestions.map(id => [id, resultIds.request_id!]))
           : undefined,
         searchType: searchType,
@@ -120,10 +120,10 @@ export const useChatStore = defineStore('chat', () => {
       }
       chatSessions.get(modelId)![qIdx].filters = activeFilters
       const entry = chatSessions.get(modelId)![qIdx]
-      if (refresh) entry.researchRequestIds = {}
+      if (refresh) entry.resultRequestIds = {}
       if (resultIds.request_id) {
-        entry.researchRequestIds = {
-          ...entry.researchRequestIds,
+        entry.resultRequestIds = {
+          ...entry.resultRequestIds,
           ...Object.fromEntries(resultIds.suggestions.map(id => [id, resultIds.request_id!])),
         }
       }

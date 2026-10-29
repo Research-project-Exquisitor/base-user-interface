@@ -23,7 +23,7 @@ export interface ChatQuery {
   timestamp: number
   resultIds: number[]
   // Retains the producing request for each page, including after load-more.
-  researchRequestIds?: Record<number, string>
+  resultRequestIds?: Record<number, string>
   filters: ActiveFiltersDB | undefined
   // Set by the index dropdown once it exists, the server default is used otherwise
   indexName?: string
