@@ -9,6 +9,7 @@ import { useAppStore } from "./app"
 import { useModelStore } from "./model"
 import { useChatStore } from "./chat"
 import { useItemStore } from "./item"
+import { logEvent } from "@/services/researchLog"
 
 export const useTemporalSearchStore = defineStore('temporalSearch', () => {
   const isOpen = ref(false)
@@ -46,6 +47,13 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
       c.chainsPerVideo === chainsPerVideo.value
     ))
     if (existing) {
+      // No request is sent, so record that the earlier results are shown again;
+      // otherwise later clicks link to a search the log shows much earlier.
+      logEvent('display_change', 'results', {
+        change: 'search_reused',
+        search_type: 'temporal',
+        query_id: existing.id,
+      }, Object.values(existing.resultRequestIds ?? {})[0])
       chatStore.currentQueryId = existing.id
       return existing.resultIds
     }
