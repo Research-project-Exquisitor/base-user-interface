@@ -11,10 +11,8 @@
 </template>
 
 <script lang="ts" setup>
-import router from './router';
 import { initSession } from './services/ExquisitorAPI';
 import { useAppStore } from './stores/app';
-import { createTracker } from './tracker';
 
 onMounted(async () => {
   await fetchInfo()
@@ -34,7 +32,4 @@ async function fetchInfo() {
   }
 }
 
-createTracker({
-  getRoute: () => router.currentRoute.value.fullPath,
-})
 </script>

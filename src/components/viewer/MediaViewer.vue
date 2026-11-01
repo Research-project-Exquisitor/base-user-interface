@@ -73,6 +73,7 @@
       <template v-if="selectedItem && selectedGroup && isGroupVideo">
         <video
          ref="videoPlayer"
+         :key="selectedGroup.src"
          :data-eid="eid('video_player')"
          :data-looping="loopSegment ? '1' : '0'"
          :poster="selectedItem.thumbPath"
@@ -82,6 +83,10 @@
          @loadedmetadata="onLoadedMetadata"
          @loadeddata="settleVideo"
          @timeupdate="onTimeUpdate"
+         @play="recordPlayback('play', false, $event)"
+         @pause="recordPlayback('pause', false, $event)"
+         @ended="recordPlayback('ended', false, $event)"
+         @seeked="recordPlayback('seek', true, $event)"
          class="viewer-video"
         >
           Your browser does not support the video tag.
@@ -158,6 +163,8 @@
          :related-items="selectedGroup.items"
          :loading="!selectedGroup.itemsLoaded"
          :search-results="videoResults"
+          :request-id="videoRequestId ?? itemStore.selectedRequestIds.get(activeModelId)"
+          :parent-request-id="itemStore.selectedRequestIds.get(activeModelId)"
          @select-item="updateSelected"
         >
           <template #search>
@@ -185,6 +192,7 @@
 </template>
 
 <script setup lang="ts">
+import { recordResearchEvent } from "@/services/researchLog"
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AlbumViewer from './AlbumViewer.vue'
 import AudioPlayer from './AudioPlayer.vue'
@@ -193,7 +201,7 @@ import { ILSets, MediaType } from '@/types/mediaitem'
 import { useItemStore } from '@/stores/item'
 import { useModelStore } from '@/stores/model'
 import { useAppStore } from '@/stores/app'
-import { logEvents, searchText, submitAnswer } from '@/services/ExquisitorAPI'
+import { searchText, submitAnswer } from '@/services/ExquisitorAPI'
 import { useFilterStore } from '@/stores/filter'
 import { useSubmissionStore } from '@/stores/submission'
 import { useErrorStore } from '@/stores/error'
@@ -280,6 +288,7 @@ const segment = computed(() => {
 })
 
 function teardownVideo(hard = false) {
+  playbackContext = undefined
   const vid = videoPlayer.value
   if (!vid) return
   vid.pause()
@@ -298,20 +307,38 @@ const lastVideoSrc = ref<string | null>(null)
 
 const startSec = computed(() => (segment.value.hasSegment ? segment.value.startMs / 1000 : 0))
 
+let playbackContext: { item_id: number; video_id: string; model_id: number; collection: string; requestId?: string; start_ms: number; end_ms: number } | undefined
+let pendingSeek: { seconds: number; cause: string } | undefined
+function seekVideo(seconds: number, cause: string) {
+  if (!videoPlayer.value) return
+  pendingSeek = { seconds, cause }
+  videoPlayer.value.currentTime = seconds
+}
+function refreshPlaybackContext() {
+  if (!videoPlayer.value || !selectedItem.value || !isGroupVideo.value) return
+  playbackContext = { item_id: selectedItem.value.id, video_id: String(videoId.value), model_id: activeModelId.value,
+    collection: modelStore.getModelCollection(activeModelId.value), requestId: itemStore.selectedRequestIds.get(activeModelId.value),
+    start_ms: segment.value.startMs, end_ms: segment.value.endMs }
+}
+// Metadata and causal context may change without changing the video position.
+watch([() => segment.value.endMs, () => itemStore.selectedRequestIds.get(activeModelId.value)], refreshPlaybackContext, { flush: 'post' })
 function syncVideo() {
   const vid = videoPlayer.value
   const src = selectedGroup.value?.src
   if (!vid || !src || !isGroupVideo.value) return
+  refreshPlaybackContext()
+
 
   if (lastVideoSrc.value !== src) {
     // For a new video, #t= makes the browser fetch from the shot's position
     // instead of loading from 0 and then seeking
     lastVideoSrc.value = src
+    pendingSeek = startSec.value > 0 ? { seconds: startSec.value, cause: 'segment_navigation' } : undefined
     vid.src = startSec.value > 0 ? `${src}#t=${startSec.value}` : src
     vid.load()
   } else if (segment.value.hasSegment && Math.abs(vid.currentTime - startSec.value) > 0.25) {
     // Same video but another shot, so just seek
-    vid.currentTime = startSec.value
+    seekVideo(startSec.value, 'segment_navigation')
     void vid.play().catch(() => {})
   }
 }
@@ -319,7 +346,7 @@ function syncVideo() {
 // Runs after render so the <video> element exists. startMs is included because a
 // related shot's metadata can arrive after it was selected
 watch(
-  () => [selectedGroup.value?.src, selectedItem.value?.id, segment.value.startMs] as const,
+  [() => selectedGroup.value?.src, () => selectedItem.value?.id, () => segment.value.startMs],
   syncVideo,
   { flush: 'post' }
 )
@@ -363,21 +390,10 @@ function onLoadedMetadata() {
   // Fallback for browsers that ignore the #t= fragment
   const vid = videoPlayer.value
   if (vid && segment.value.hasSegment && Math.abs(vid.currentTime - startSec.value) > 0.5) {
-    vid.currentTime = startSec.value
+    seekVideo(startSec.value, 'segment_navigation')
   }
 
-  if (selectedItem.value && selectedGroup.value) {
-    logEvents([{
-      ts: Date.now(),
-      action: `Video Segment Loaded (media item: ${selectedItem.value.id})`,
-      session: useAppStore().session,
-      data: JSON.stringify({
-        itemId: selectedItem.value.id,
-        vid: selectedGroup.value.src,
-        seek_second: startSec.value
-      })
-    }])
-  }
+
 }
 
 function onTimeUpdate() {
@@ -390,16 +406,17 @@ function onTimeUpdate() {
 
   const endSec = segment.value.endMs / 1000
 
-  if (vid.currentTime > endSec) vid.currentTime = startSec.value
-  if (vid.currentTime < startSec.value) vid.currentTime = startSec.value
+  if (vid.currentTime > endSec) seekVideo(startSec.value, 'segment_loop')
+  if (vid.currentTime < startSec.value) seekVideo(startSec.value, 'segment_boundary')
 }
 
-function updateSelected(itemId?: number) {
-  if (typeof itemId === 'number') void itemStore.setSelectedItem(itemId)
+function updateSelected(itemId?: number, requestId?: string) {
+  if (typeof itemId === 'number') void itemStore.setSelectedItem(itemId, requestId)
 }
 
 // --- In-video search ---
 // Text search limited to this video. The results reorder the related grid
+const videoRequestId = ref<string>()
 const videoQuery = ref<string | null>('')
 const videoResults = ref<number[] | null>(null)
 const videoSearching = ref(false)
@@ -443,7 +460,7 @@ async function searchInVideo() {
       excluded: [],
       search_model: 'clip'
     })
-    if (selectedGroup.value?.src === src) videoResults.value = res.suggestions
+    if (selectedGroup.value?.src === src) { videoResults.value = res.suggestions; videoRequestId.value = res.request_id }
   } catch (err) {
     useErrorStore().show(err)
   } finally {
@@ -452,6 +469,7 @@ async function searchInVideo() {
 }
 
 function clearVideoSearch() {
+  videoRequestId.value = undefined
   videoQuery.value = ''
   videoResults.value = null
 }
@@ -491,9 +509,27 @@ async function submitCurrent() {
     start,
     end,
     evalId: useAppStore().selectedEvaluation.id,
-  })
+  }, { itemId: selectedItem.value.id, requestId: itemStore.selectedRequestIds.get(activeModelId.value), surface: 'media_viewer' })
   useSubmissionStore().show(result, `Video ${name}, ${(start / 1000).toFixed(1)}–${(end / 1000).toFixed(1)} s`)
 }
+function recordPlayback(action: string, seek: boolean, event: Event) {
+  if (!playbackContext || !videoPlayer.value || event.target !== videoPlayer.value) return
+  const { requestId, ...context } = playbackContext
+  recordResearchEvent(seek ? 'video_seek' : 'video_play', 'video', {
+    ...context, action, cause: seek ? (pendingSeek && Math.abs(videoPlayer.value.currentTime - pendingSeek.seconds) < 0.5 ? pendingSeek.cause : 'user') : 'playback',
+    position_ms: Math.round(videoPlayer.value.currentTime * 1000), looping: loopSegment.value,
+  }, requestId)
+  if (seek) pendingSeek = undefined
+}
+
+watch(() => [selectedItem.value?.id, selectedGroup.value?.src, segment.value.startMs, segment.value.endMs], () => {
+  if (!selectedItem.value || !isGroupVideo.value) return
+  recordResearchEvent('display_change', 'video', {
+    change: 'segment_open', item_id: selectedItem.value.id, video_id: videoId.value,
+    model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
+    start_ms: segment.value.startMs, end_ms: segment.value.endMs,
+  }, itemStore.selectedRequestIds.get(activeModelId.value))
+}, { immediate: true, flush: 'post' })
 </script>
 
 <style scoped>

@@ -1,3 +1,4 @@
+import { resultIds as flattenResults, type ResultPage } from '@/types/results'
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { reactive } from "vue"
@@ -26,7 +27,7 @@ export const useFeedbackStore = defineStore('feedback', () => {
         positives: [],
         negatives: [],
         filters: undefined,
-        resultIds: []
+        resultPages: []
       }
     )
     return rfSearches.get(modelId)!
@@ -48,7 +49,7 @@ export const useFeedbackStore = defineStore('feedback', () => {
   async function getFeedbackResults(
     loadMore: boolean, 
     query?: string,
-  ): Promise<number[]> {
+  ): Promise<ResultPage[]> {
     const activeModelId = modelStore.activeModel!.id
     let pos: number[] = []
     let neg: number[] = []
@@ -59,7 +60,7 @@ export const useFeedbackStore = defineStore('feedback', () => {
     if (loadMore) {
       pos = rfSearch.positives
       neg = rfSearch.negatives
-      resIds = rfSearch.resultIds
+      resIds = flattenResults(rfSearch.resultPages)
     } else {
       rfSearch.positives = pos
       rfSearch.negatives = neg
@@ -91,16 +92,9 @@ export const useFeedbackStore = defineStore('feedback', () => {
     //     reqObj.filters = filters
     // }
     let suggs = await searchRF(reqObj)
-    if (!loadMore) rfSearch.resultRequestIds = {}
-    if (suggs.request_id) {
-      rfSearch.resultRequestIds = {
-        ...rfSearch.resultRequestIds,
-        ...Object.fromEntries(suggs.suggestions.map(id => [id, suggs.request_id!])),
-      }
-    }
-    resIds.push(...suggs.suggestions)
-    rfSearch.resultIds = resIds
-    return resIds
+    const page = { requestId: suggs.request_id, ids: suggs.suggestions }
+    rfSearch.resultPages = loadMore ? [...rfSearch.resultPages, page] : [page]
+    return rfSearch.resultPages
   }
   
   return {

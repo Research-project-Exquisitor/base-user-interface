@@ -312,7 +312,7 @@ import { useAdvancedSearchStore } from '@/stores/advancedSearch'
 import { useFilterStore } from '@/stores/filter'
 import { useModelStore } from '@/stores/model'
 import { useAppStore } from '@/stores/app'
-import { logEvents } from '@/services/ExquisitorAPI'
+import { recordResearchEvent } from '@/services/researchLog'
 import type { AdvancedSearchPayload } from '@/types/chat'
 import type {
   ActiveFiltersDB,
@@ -437,16 +437,10 @@ function placeholderFor(f: FilterInfo) {
 
 // Logs the current selected values for a filter after the user changes it
 function onValueFilterChange(f: FilterInfo) {
-  logEvents([{
-    ts: Date.now(),
-    action: 'Update Advanced Search Filter ' + f.name,
-    session: appStore.session,
-    data: JSON.stringify({
-      filter: f.name,
-      values: (local.valueFilters[f.id] ?? []).map((v: any) => v.value),
-    }),
-  }])
-}
+  recordResearchEvent('filter_change', 'filter', {
+    model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
+    filter_id: f.id, filter: f.name, values: local.valueFilters[f.id] ?? [],
+  })}
 
 /* ---------- parsing ---------- */
 
@@ -474,14 +468,10 @@ function parseRangeInput(f: FilterInfo, raw: string): number | null {
 
 /* ---------- range leaf building ---------- */
 
-// Debounces buildRangeLeaf per filter so rapid keystrokes don't trigger repeated rebuilds
-const rangeTimers = new Map<number, number>()
+// Capture at the input action. A delayed callback could outlive the dialog
+// or model and lose the edit or attribute it to a different tab.
 function onRangeInput(f: FilterInfo) {
-  const id = f.id
-  const old = rangeTimers.get(id)
-  if (old) window.clearTimeout(old)
-  const t = window.setTimeout(() => buildRangeLeaf(f), 180)
-  rangeTimers.set(id, t)
+  buildRangeLeaf(f)
 }
 
 // Translates the current op + input values into a FilterLeaf and stores it; 
@@ -489,6 +479,10 @@ function onRangeInput(f: FilterInfo) {
 function buildRangeLeaf(f: FilterInfo) {
   const st = local.rangeInputs[f.id]
   if (!st) return
+  recordResearchEvent('filter_change', 'filter', {
+    model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
+    filter_id: f.id, filter: f.name, ...st,
+  })
 
   const op = st.op
   const aRaw = (st.a ?? '').trim()
@@ -532,12 +526,6 @@ function buildRangeLeaf(f: FilterInfo) {
     false
   )
 
-  logEvents([{
-    ts: Date.now(),
-    action: 'Update Advanced Search Range Filter ' + f.name,
-    session: appStore.session,
-    data: JSON.stringify({ filter: f.name, op, a: aRaw, b: bRaw }),
-  }])
 }
 
 // Combines all selected value filters and range leaves into a single AND group for the API; 
@@ -623,12 +611,6 @@ function fileToDataURL(f: File): Promise<string> {
 
 // Collects the current form state into a payload and emits it to the parent to trigger a search
 async function search() {
-  logEvents([{
-    ts: Date.now(),
-    action: 'Execute Advanced Search',
-    session: appStore.session,
-  }])
-
   if (local.searchType === 'image') {
     local.queryName = URL.createObjectURL(file.value!)
     local.queryText = await fileToDataURL(file.value!)

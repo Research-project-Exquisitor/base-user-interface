@@ -1,3 +1,4 @@
+import type { ResultPage } from '@/types/results'
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { searchTemporal } from "@/services/searchApi"
@@ -9,7 +10,7 @@ import { useAppStore } from "./app"
 import { useModelStore } from "./model"
 import { useChatStore } from "./chat"
 import { useItemStore } from "./item"
-import { logEvent } from "@/services/researchLog"
+import { recordResearchEvent } from "@/services/researchLog"
 
 export const useTemporalSearchStore = defineStore('temporalSearch', () => {
   const isOpen = ref(false)
@@ -33,7 +34,7 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
     isOpen.value = false
   }
   
-  async function search(orderedSelection: ChatQuery[]): Promise<number[]> {
+  async function search(orderedSelection: ChatQuery[]): Promise<ResultPage[]> {
     const modelId = modelStore.activeModel!.id
     const chat = chatStore.getOrCreateChat(modelId)
     const hops = orderedSelection.map(toHop)
@@ -49,13 +50,13 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
     if (existing) {
       // No request is sent, so record that the earlier results are shown again;
       // otherwise later clicks link to a search the log shows much earlier.
-      logEvent('display_change', 'results', {
+      recordResearchEvent('display_change', 'results', {
         change: 'search_reused',
         search_type: 'temporal',
         query_id: existing.id,
-      }, Object.values(existing.resultRequestIds ?? {})[0])
+      }, existing.resultPages[0]?.requestId)
       chatStore.currentQueryId = existing.id
-      return existing.resultIds
+      return existing.resultPages
     }
 
     const reqObj: ExqTemporalSearchRequest = {
@@ -93,10 +94,7 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
       name: "Temporal Search (" + text + ")",
       text: orderedSelection.map(q => q.text).join(" || "),
       timestamp: Date.now(),
-      resultIds: resultIds,
-      resultRequestIds: requestId
-        ? Object.fromEntries(resultIds.map(id => [id, requestId!]))
-        : undefined,
+      resultPages: [{ requestId, ids: resultIds }],
       searchType: 'temporal',
       searchModel: 'clip',
       // Each hop carries its own filters
@@ -108,7 +106,7 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
     })
     chatStore.currentQueryId = chat[chat.length - 1].id
 
-    return resultIds
+    return chat[chat.length - 1].resultPages
   }
     
   return {

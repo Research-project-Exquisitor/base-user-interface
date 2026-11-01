@@ -28,7 +28,7 @@
         <v-tabs v-model="tab" density="comfortable">
           <v-tab value="general">General</v-tab>
           <v-tab value="model">Model</v-tab>
-          <v-tab v-if="appStore.evaluations.length > 0" value="competition">Competition</v-tab>
+          <v-tab value="competition">Competition</v-tab>
         </v-tabs>
 
         <v-divider class="my-3" />
@@ -122,9 +122,11 @@
           </v-window-item>
 
           <!-- Competition -->
-          <v-window-item v-if="appStore.evaluations.length > 0" value="competition">
-            <div class="text-subtitle-2 font-weight-bold mb-2">Active Evaluation</div>
+          <v-window-item value="competition">
+            <div v-if="!appStore.localSubmission" class="text-subtitle-2 font-weight-bold mb-2">Active Evaluation</div>
+            <p v-else class="mb-3">Answers are recorded locally. No evaluation verdict is available.</p>
             <v-select
+             v-if="!appStore.localSubmission"
              :data-eid="'select_active_evaluation_dropdown_' + activeModel!.id"
              v-model="appStore.selectedEvaluation"
              :items="appStore.evaluations"
@@ -165,7 +167,7 @@
                variant="flat"
                @click="submitTextAnswerVBS"
               >
-                Submit answer
+                {{ appStore.localSubmission ? 'Record answer' : 'Submit answer' }}
               </v-btn>
             </div>
           </v-window-item>
@@ -177,10 +179,11 @@
 </template>
 
 <script setup lang="ts">
+import { recordResearchEvent } from "@/services/researchLog"
 import { computed, ref, watch } from 'vue'
 import { useModelStore } from '@/stores/model'
 import EditTextField from '@/components/general/EditTextField.vue'
-import { logEvents, submitAnswer } from '@/services/ExquisitorAPI'
+import { submitAnswer } from '@/services/ExquisitorAPI'
 import { useAppStore } from '@/stores/app'
 import { useSubmissionStore } from '@/stores/submission'
 import { ResourceValues } from '@/types/model'
@@ -244,19 +247,14 @@ async function submitTextAnswerVBS() {
     evalId: appStore.selectedEvaluation.id,
   }
   // On failure the answer stays in the field so it can be resubmitted
-  const result = await submitAnswer(requestObject)
+  const result = await submitAnswer(requestObject, { surface: 'text_answer' })
   useSubmissionStore().show(result, `Answer "${answer}"`)
   qaAnswer.value = ''
 }
 
 // logging open/close
-watch(dialog, (newVal) => {
-  logEvents([{
-    ts: Date.now(),
-    action: newVal ? 'Open Settings Form' : 'Close Settings Form',
-    session: appStore.session,
-    element_id: 'settings_form'
-  }])
+watch(dialog, (open) => {
+  recordResearchEvent('display_change', 'session', { surface: 'settings_form', change: open ? 'open' : 'close' })
 })
 </script>
 

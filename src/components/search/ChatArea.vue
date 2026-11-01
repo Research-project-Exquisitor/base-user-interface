@@ -61,6 +61,7 @@
 </template>
 
 <script setup lang="ts">
+import type { ResultPage } from "@/types/results"
 import { computed, reactive, ref } from 'vue'
 
 import SearchBar from '@/components/search/SearchBar.vue'
@@ -77,7 +78,7 @@ import type { ChatQuery } from '@/types/chat'
 const props = defineProps<{ modelId: number }>()
 
 const emit = defineEmits<{
-  (e: 'show-search-results', resultIds: number[]): void
+  (e: 'show-search-results', resultIds: ResultPage[]): void
 }>()
 
 const chatStore = useChatStore()
@@ -142,7 +143,7 @@ function openTemporalDialog() {
 }
 
 // show a previous query’s results
-function onShowResults(queryId: string, resultIds: number[]) {
+function onShowResults(queryId: string, resultIds: ResultPage[]) {
   chatStore.currentQueryId = queryId
   emit('show-search-results', resultIds)
 }

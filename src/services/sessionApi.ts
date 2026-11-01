@@ -1,7 +1,8 @@
+import { recordResearchEvent } from './researchLog'
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { ExqInitResponse, ExqSessionInfo } from '@/types/exq'
-import { exqURI, get, mock, post, setSessionId } from './http'
+import type { ExqInitResponse } from '@/types/exq'
+import { exqURI, get, mock, setSessionId } from './http'
 import {
     initSession as mockInitExq,
 } from './MockExquisitorAPI'
@@ -23,6 +24,7 @@ export const initSession = async (): Promise<ExqInitResponse> => {
         '/exq/init/' + session
     )
     setSessionId(resp.session)
+    recordResearchEvent('session_start', 'session', { collections: resp.collections })
     // DRES is a separate evaluation service — fetched separately on init
     const evals: { id: string; name: string }[] = await fetch(exqURI + '/dres/evaluation_list/')
         .then(val => val.status !== 404 ? val.json() : [])
@@ -31,16 +33,6 @@ export const initSession = async (): Promise<ExqInitResponse> => {
         collections: resp.collections,
         evaluations: evals,
     }
-}
-
-export const initModel = (req: ExqSessionInfo): void => {
-    if (mock) return
-    post('/exq/log/addModel', req)
-}
-
-export const removeModel = (req: ExqSessionInfo): void => {
-    if (mock) return
-    post('/exq/log/removeModel', req)
 }
 
 // TODO: endpoint not yet defined

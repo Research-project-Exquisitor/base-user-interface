@@ -1,3 +1,4 @@
+import { recordResearchEvent } from '@/services/researchLog'
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { GroupMetadata, ILSets, } from "@/types/mediaitem";
@@ -23,6 +24,7 @@ export const useItemStore = defineStore('item', () => {
   const modelStore = useModelStore()
   const activeModel = reactive(computed(() => modelStore.activeModel))
   
+  const selectedRequestIds = reactive(new Map<number, string | undefined>())
   const selectedItem : Map<number, MediaItem> = reactive(new Map<number, MediaItem>())
   const selectedGroup : Map<number, GroupMetadata> = reactive(new Map<number, GroupMetadata>())
   // Set when the selected item's video info failed to load, so the viewer can say so
@@ -99,7 +101,7 @@ export const useItemStore = defineStore('item', () => {
       if (!it.currentSets.has(modelId)) it.currentSets.set(modelId, [false, false, false, false])
   }
   
-  function addItemToSet(itemId: number, modelId: number, ilset: ILSets) : void {
+  function addItemToSet(itemId: number, modelId: number, ilset: ILSets, requestId?: string) : void {
     // When adding an item to a set, we need to ensure it is removed from any mutually exclusive sets 
     // and update the addedAt timestamp for the set
     const now = Date.now()
@@ -121,6 +123,11 @@ export const useItemStore = defineStore('item', () => {
     const collection = modelStore.getModelCollection(modelId)
     ensureItemSetEntry(itemId, modelId)
     const sets = items.get(collection)!.get(itemId)!.currentSets!.get(modelId)!
+    if (!sets[ilset] && [ILSets.Positives, ILSets.Negatives, ILSets.Excluded].includes(ilset)) {
+      recordResearchEvent('relevance_label', 'result', {
+        item_id: itemId, model_id: modelId, collection, action: 'add', label: ILSets[ilset],
+      }, requestId ?? modelStore.getModel(modelId).grid[0]?.pages.find(page => page.ids.includes(itemId))?.requestId ?? selectedRequestIds.get(modelId))
+    }
     switch (ilset) {
       case ILSets.Positives:
         sets[ILSets.Positives] = true
@@ -157,8 +164,13 @@ export const useItemStore = defineStore('item', () => {
     return true
   } 
   
-  function removeItemFromSet(itemId: number, modelId: number, ilset: ILSets) : void {
+  function removeItemFromSet(itemId: number, modelId: number, ilset: ILSets, requestId?: string) : void {
     const collection = modelStore.getModelCollection(modelId)
+    const wasSet = items.get(collection)!.get(itemId)!.currentSets!.get(modelId)![ilset]
+    if (wasSet && [ILSets.Positives, ILSets.Negatives, ILSets.Excluded].includes(ilset)) {
+      recordResearchEvent('relevance_label', 'result', { item_id: itemId, model_id: modelId, collection, action: 'remove', label: ILSets[ilset] },
+        requestId ?? modelStore.getModel(modelId).grid[0]?.pages.find(page => page.ids.includes(itemId))?.requestId ?? selectedRequestIds.get(modelId))
+    }
     items.get(collection)!.get(itemId)!.currentSets!.get(modelId)![ilset] = false
     setAddedAtMap(modelId, ilset).delete(itemId)
   }
@@ -166,7 +178,7 @@ export const useItemStore = defineStore('item', () => {
   function removeItemsFromSet(itemIds: number[], modelId: number, ilset: ILSets) : boolean {
     const collection = modelStore.getModelCollection(modelId)
     itemIds.forEach((v,_) => {
-      items.get(collection)!.get(v)!.currentSets!.get(modelId)![ilset] = false
+      removeItemFromSet(v, modelId, ilset)
       if (items.get(collection)!.get(v)!.currentSets!.get(modelId)![ilset]) {
         // console.log('Unable to delete set from item: ' + ilset + ' ' + v)
         return false
@@ -285,7 +297,7 @@ export const useItemStore = defineStore('item', () => {
     }
   }
 
-  async function setSelectedItem(itemId: number): Promise<void> {
+  async function setSelectedItem(itemId: number, requestId?: string): Promise<void> {
     if (!activeModel.value) return
     const modelId = activeModel.value.id
     const collection = modelStore.getModelCollection(modelId)
@@ -296,6 +308,7 @@ export const useItemStore = defineStore('item', () => {
     // if it's the same video, which then just seeks. Otherwise the viewer shows a
     // placeholder until the new video can start at the right position.
     selectedItem.set(modelId, item)
+    selectedRequestIds.set(modelId, requestId)
     selectionFailed.value = false
     if (selectedGroup.get(modelId) !== groupStore.get(collection, groupId)) selectedGroup.delete(modelId)
 
@@ -361,6 +374,7 @@ export const useItemStore = defineStore('item', () => {
     fetchItemInfo,
     fetchRelatedItems,
     setSelectedItem,
+    selectedRequestIds,
     getSelectedGroup,
     getSelectedItem,
   }

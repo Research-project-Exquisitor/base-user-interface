@@ -130,6 +130,7 @@
           v-for="id in shownIds"
           :key="`${activeModelId}-${id}`"
           :item-id="id"
+          :request-id="gridPages.find(page => page.ids.includes(id))?.requestId"
           :model-id="activeModelId"
           :item="itemsById.get(id) ?? null"
           :group-info="getGroupInfoForItem(id)"
@@ -175,6 +176,7 @@
                 >
                   <ItemTile
                     :item-id="id"
+          :request-id="gridPages.find(page => page.ids.includes(id))?.requestId"
                     :model-id="activeModelId"
                     :item="itemsById.get(id) ?? null"
                     :group-info="getGroupInfoForItem(id)"
@@ -216,6 +218,7 @@
 </template>
 
 <script setup lang="ts">
+import type { ResultPage } from "@/types/results"
 import { computed, reactive, ref, watch } from 'vue'
 import ItemTile from '@/components/items/ItemTile.vue'
 import { useModelStore } from '@/stores/model'
@@ -229,7 +232,7 @@ import type MediaItem from '@/types/mediaitem'
 import type { GroupMetadata } from '@/types/mediaitem'
 import type { ExqTemporalChain } from '@/types/exq'
 import { useAppStore } from '@/stores/app'
-import { logEvent } from '@/services/researchLog'
+import { recordResearchEvent } from '@/services/researchLog'
 
 const props = defineProps<{
   modelId: number,
@@ -262,7 +265,7 @@ const emit = defineEmits<{
   (e: 'toggle-chat'): void
   (e: 'load-more'): void
   (e: 'selected', itemId: number): void
-  (e: 'show-rf-results', resultIds: number[]): void
+  (e: 'show-rf-results', resultIds: ResultPage[]): void
   (e: 'toggle-positives'): void
   (e: 'toggle-negatives'): void
   (e: 'toggle-history'): void
@@ -273,7 +276,8 @@ const emit = defineEmits<{
   (e: 'open-excluded-dialog'): void
 }>()
 
-const gridIds = computed(() => modelStore.activeModel!.grid[0].items)
+const gridPages = computed(() => modelStore.activeModel!.grid[0].pages)
+const gridIds = computed(() => gridPages.value.flatMap(page => page.ids))
 
 // Tile sizing
 const tileWidth = computed(() => useAppStore().globalThumbSize)
@@ -489,7 +493,7 @@ watch(
 
 // Show positive/negative results
 async function onShowFeedbackResults() {
-  let suggs: number[] = []
+  let suggs: ResultPage[] = []
   if (pseudoRF.value) {
     const session = chatStore.chatSessions.get(activeModelId.value!)!
     const qIdx = session.findIndex((val) => val.id === chatStore.currentQueryId)
@@ -521,33 +525,33 @@ function onLoadMore() {
 }
 
 function onOpen(itemId: number) {
-  // History or feedback can change the grid independently of the selected
-  // chat query. Only claim a producing request when that result list matches.
-  const query = currentQuery.value
-  const matchesQuery = query && gridIds.value.length === query.resultIds.length
-    && gridIds.value.every((id, index) => id === query.resultIds[index])
-  const feedback = feedbackStore.getOrCreateRF(activeModelId.value)
-  const matchesFeedback = !matchesQuery && gridIds.value.length === feedback.resultIds.length
-    && gridIds.value.every((id, index) => id === feedback.resultIds[index])
-  const requestId = matchesQuery ? query.resultRequestIds?.[itemId]
-    : matchesFeedback ? feedback.resultRequestIds?.[itemId] : undefined
-  logEvent('result_click', 'result', {
+  const requestId = gridPages.value.find(page => page.ids.includes(itemId))?.requestId
+  recordResearchEvent('result_click', 'result', {
     item_id: itemId,
     collection: collection.value,
     model_id: activeModelId.value,
-    query_id: matchesQuery ? query.id : undefined,
     surface: 'result_grid',
   }, requestId)
   emit('selected', itemId)
 }
 
 function onAdd(payload: { itemId: number; set: ILSets }) {
-  itemStore.addItemToSet(payload.itemId, activeModelId.value, payload.set)
+  itemStore.addItemToSet(payload.itemId, activeModelId.value, payload.set, gridPages.value.find(page => page.ids.includes(payload.itemId))?.requestId)
 }
 
 function onRemove(payload: { itemId: number; set: ILSets }) {
-  itemStore.removeItemFromSet(payload.itemId, activeModelId.value, payload.set)
+  itemStore.removeItemFromSet(payload.itemId, activeModelId.value, payload.set, gridPages.value.find(page => page.ids.includes(payload.itemId))?.requestId)
 }
+watch(() => JSON.stringify({
+  model_id: activeModelId.value, collection: collection.value,
+  ids: shownIds.value, pages: gridPages.value, groups: groupView.value ? groupBlocks.value : null, grouped: groupView.value,
+}), () => {
+  recordResearchEvent('result_state', 'results', {
+    surface: 'result_grid', model_id: activeModelId.value, collection: collection.value,
+    ids: groupView.value ? groupBlocks.value.flatMap(block => block.segments.flatMap(segment => segment.ids)) : [...shownIds.value],
+    pages: gridPages.value, groups: groupView.value ? groupBlocks.value : null, grouped: groupView.value,
+  })
+}, { immediate: true, flush: 'post' })
 </script>
 
 <style scoped>

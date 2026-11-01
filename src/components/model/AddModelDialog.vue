@@ -32,8 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { logEvents } from '@/services/ExquisitorAPI';
-import { useAppStore } from '@/stores/app';
+import { recordResearchEvent } from "@/services/researchLog"
 import { ref } from 'vue'
 
 const props = defineProps<{
@@ -61,22 +60,7 @@ function onConfirm() {
   emit('confirm', selectedCollection.value)
 }
   
-watch(show, (newVal) => {
-  if (newVal) {
-    selectedCollection.value = ''
-    logEvents([{
-      ts: Date.now(),
-      action: 'Open Add Model Dialog',
-      session: useAppStore().session,
-      element_id: 'add_model_dialog'
-    }])
-  } else {
-    logEvents([{
-      ts: Date.now(),
-      action: 'Close Add Model Dialog',
-      session: useAppStore().session,
-      element_id: 'add_model_dialog'
-    }])
-  }
+watch(show, (open) => {
+  recordResearchEvent('display_change', 'session', { surface: 'add_model_dialog', change: open ? 'open' : 'close' })
 })
 </script>

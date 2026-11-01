@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-export const exqURI = 'https://localhost:5000'
+export const exqURI = 'http://localhost:8000'
 export const mock = false
 
 export const getMainURI = () => exqURI
@@ -16,18 +16,19 @@ export const setSessionId = (id: string): void => {
 export const getSessionId = (): string => sessionId
 
 /** A short random ID per request; the server tags its log lines with it. */
-function newRequestId(): string {
+export function newRequestId(): string {
     const bytes = crypto.getRandomValues(new Uint8Array(6))
     return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
 /** Headers for every request to the engine. */
-export function exqHeaders(): Record<string, string> {
+export function exqHeaders(context?: { requestId?: string; sequence?: number }): Record<string, string> {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'X-Exq-Request-Id': newRequestId(),
+        'X-Exq-Request-Id': context?.requestId ?? newRequestId(),
     }
     if (sessionId) headers['X-Exq-Session'] = sessionId
+    if (context?.sequence !== undefined) headers['X-Exq-Event-Sequence'] = String(context.sequence)
     return headers
 }
 
@@ -52,11 +53,11 @@ async function checkResponse(resp: Response, method: string, body?: unknown): Pr
     }
 }
 
-export async function post<T>(path: string, body: unknown, signal?: AbortSignal, headers = exqHeaders()): Promise<T> {
+export async function post<T>(path: string, body: unknown, signal?: AbortSignal, context?: { requestId?: string; sequence?: number }): Promise<T> {
     const resp = await fetch(exqURI + path, {
         method: 'POST',
         mode: 'cors',
-        headers,
+        headers: exqHeaders(context),
         body: JSON.stringify(body),
         signal,
     })

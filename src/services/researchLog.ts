@@ -9,7 +9,7 @@ let nextSequence = 0
 /** Capture a semantic event at its source, without blocking the interaction.
  * Phase 4 will add persistence, retries and deduplication to this transport.
  */
-export function logEvent(
+export function recordResearchEvent(
   type: EventType,
   target: EventTarget,
   data: Record<string, unknown>,
@@ -34,7 +34,7 @@ export function logEvent(
     // Snapshot mutable inputs (seen lists, filters, results) at capture time.
     data: JSON.parse(JSON.stringify(data)),
   }
-  void post('/exq/log/clientEventV2', [event]).catch((error: unknown) => {
+  void post('/exq/log/clientEvent', [event]).catch((error: unknown) => {
     console.error('Research event delivery failed', error)
   })
   return event

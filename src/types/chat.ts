@@ -1,3 +1,4 @@
+import type { ResultPage } from './results'
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { ActiveFiltersDB } from "./filter"
@@ -21,9 +22,7 @@ export interface ChatQuery {
   searchType: string
   searchModel: string
   timestamp: number
-  resultIds: number[]
-  // Retains the producing request for each page, including after load-more.
-  resultRequestIds?: Record<number, string>
+  resultPages: ResultPage[]
   filters: ActiveFiltersDB | undefined
   // Set by the index dropdown once it exists, the server default is used otherwise
   indexName?: string

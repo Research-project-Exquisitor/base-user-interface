@@ -151,6 +151,7 @@ const props = defineProps<{
   itemId: number
   modelId: number
 
+  requestId?: string
   // Prefetched by ResultGrid
   item: MediaItem | null
 
@@ -255,6 +256,16 @@ const submitting = ref(false)
 async function submit() {
   submitting.value = true
   try {
+    // Local research capture also supports image collections without segment metadata.
+    if (appStore.localSubmission) {
+      const result = await submitAnswer({
+        session_info: { session: appStore.session, modelId: props.modelId, collection: useModelStore().getModelCollection(props.modelId) },
+        qa: false, evalId: '', name: String(props.itemId),
+      }, { itemId: props.itemId, requestId: props.requestId, surface: 'item_tile' })
+      emitAdd(ILSets.Submitted)
+      useSubmissionStore().show(result, `Item ${props.itemId}`)
+      return
+    }
     // Errors propagate to the global errorHandler, which shows the error dialog
 
     // Tiles without hover preview skip metadata until now (store caches and dedupes)
@@ -290,7 +301,7 @@ async function submit() {
       start,
       end,
       evalId: appStore.selectedEvaluation.id,
-    })
+    }, { itemId: props.itemId, requestId: props.requestId, surface: 'item_tile' })
     emitAdd(ILSets.Submitted)
     useSubmissionStore().show(result, `Video ${name}, ${(start / 1000).toFixed(1)}–${(end / 1000).toFixed(1)} s`)
   } finally {
