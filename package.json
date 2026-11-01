@@ -6,7 +6,6 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "eslint . --fix --ignore-path .gitignore",
-    "test:research": "node --test tests/research*.test.mjs",
     "check:event-types": "../live-services-engine/.venv/bin/python ../live-services-engine/scripts/generate_event_types.py --output src/types/logEvent.ts --check"
   },
   "dependencies": {
