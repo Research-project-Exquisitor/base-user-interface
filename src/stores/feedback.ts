@@ -63,7 +63,6 @@ export const useFeedbackStore = defineStore('feedback', () => {
     } else {
       rfSearch.positives = pos
       rfSearch.negatives = neg
-      rfSearch.resultIds = []
     }
     let hist:number[] = []
     hist.push(...pos)
@@ -92,6 +91,13 @@ export const useFeedbackStore = defineStore('feedback', () => {
     //     reqObj.filters = filters
     // }
     let suggs = await searchRF(reqObj)
+    if (!loadMore) rfSearch.resultRequestIds = {}
+    if (suggs.request_id) {
+      rfSearch.resultRequestIds = {
+        ...rfSearch.resultRequestIds,
+        ...Object.fromEntries(suggs.suggestions.map(id => [id, suggs.request_id!])),
+      }
+    }
     resIds.push(...suggs.suggestions)
     rfSearch.resultIds = resIds
     return resIds

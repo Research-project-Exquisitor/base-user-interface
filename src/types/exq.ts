@@ -37,6 +37,7 @@ export interface ExqRFRequest {
 
 export interface ExqRFResponse {
   suggestions : number[]
+  request_id?: string
 }
 
 export interface ExqTextSearchRequest {
@@ -98,6 +99,7 @@ export interface ExqTemporalChain {
 
 export interface ExqTemporalSearchResponse {
   suggestions: ExqTemporalChain[]
+  request_id?: string
 }
 
 export type ExqTemporalHop =

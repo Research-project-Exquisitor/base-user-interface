@@ -10,7 +10,8 @@ import type {
     ExqQueryRewriteRequest,
 } from '@/types/exq'
 import type { ExqSearchResponse, ExqQueryRewriteResponse } from '@/types/chat'
-import { mock, post } from './http'
+import { exqHeaders, mock, post } from './http'
+import { logEvent } from './researchLog'
 import { doURF as mockDoURF } from './MockExquisitorAPI'
 
 // Separate service — different host from the main Exquisitor server
@@ -18,7 +19,7 @@ const queryRewriteURI = 'http://mandla-1:5001'
 
 export const searchRF = async (req: ExqRFRequest): Promise<ExqRFResponse> => {
     if (mock) return mockDoURF(req)
-    return post('/exq/search/rf', req)
+    return postSearch('/exq/search/rf', req)
 }
 
 export const searchText = async (req: ExqTextSearchRequest): Promise<ExqSearchResponse> => {
@@ -32,7 +33,38 @@ export const searchText = async (req: ExqTextSearchRequest): Promise<ExqSearchRe
     if (search_model === 'caption') path = '/exq/search/caption'
     else if (search_model === 'aggregate') path = '/exq/search/aggregate'
     console.log('Search object', body)
-    return post(path, body)
+    if (path !== '/exq/search/clip' && path !== '/exq/search/text') return post(path, body)
+    return postSearch(path, body)
+}
+
+// Shared event capture for migrated searches. Keep transport and correlation
+// consistent across search families; unmigrated endpoints keep calling post().
+async function postSearch<T extends { suggestions: unknown[] }>(
+    path: string,
+    body: ExqTextSearchRequest | ExqRFRequest | ExqTemporalSearchRequest,
+): Promise<T & { request_id?: string }> {
+    const headers = exqHeaders()
+    const requestId = headers['X-Exq-Request-Id']
+    const submission = logEvent('query_submission', 'search', {
+        endpoint: path,
+        request: body,
+    }, requestId)
+    if (submission) headers['X-Exq-Event-Sequence'] = String(submission.sequence)
+    try {
+        const result = await post<T>(path, body, undefined, headers)
+        logEvent('query_response_received', 'search', {
+            collection: body.session_info.collection,
+            model_id: body.session_info.modelId,
+            suggestions: result.suggestions,
+        }, requestId)
+        return { ...result, request_id: requestId }
+    } catch (error) {
+        logEvent('error', 'search', {
+            endpoint: path,
+            message: error instanceof Error ? error.message : String(error),
+        }, requestId)
+        throw error
+    }
 }
 
 export const searchImage = async (req: ExqImageSearchRequest): Promise<ExqSearchResponse> => {
@@ -50,7 +82,7 @@ export const searchTemporal = async (req: ExqTemporalSearchRequest): Promise<Exq
             { group: 3, items: [40, 42, 45], length: 3, score: 0.5, start_ms: 120000, end_ms: 138000 },
         ]
     }
-    return post('/exq/search/temporal', req)
+    return postSearch('/exq/search/temporal', req)
 }
 
 export const searchQueryRewrite = async (req: ExqQueryRewriteRequest): Promise<ExqQueryRewriteResponse> => {

@@ -22,6 +22,7 @@ export const initSession = async (): Promise<ExqInitResponse> => {
     const resp = await get<{ session: string; totalItems: number[]; collections: string[] }>(
         '/exq/init/' + session
     )
+    setSessionId(resp.session)
     // DRES is a separate evaluation service — fetched separately on init
     const evals: { id: string; name: string }[] = await fetch(exqURI + '/dres/evaluation_list/')
         .then(val => val.status !== 404 ? val.json() : [])

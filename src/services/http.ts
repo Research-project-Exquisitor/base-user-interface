@@ -13,6 +13,8 @@ export const setSessionId = (id: string): void => {
     sessionId = id
 }
 
+export const getSessionId = (): string => sessionId
+
 /** A short random ID per request; the server tags its log lines with it. */
 function newRequestId(): string {
     const bytes = crypto.getRandomValues(new Uint8Array(6))
@@ -50,11 +52,11 @@ async function checkResponse(resp: Response, method: string, body?: unknown): Pr
     }
 }
 
-export async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+export async function post<T>(path: string, body: unknown, signal?: AbortSignal, headers = exqHeaders()): Promise<T> {
     const resp = await fetch(exqURI + path, {
         method: 'POST',
         mode: 'cors',
-        headers: exqHeaders(),
+        headers,
         body: JSON.stringify(body),
         signal,
     })
