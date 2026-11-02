@@ -312,7 +312,7 @@ import { useAdvancedSearchStore } from '@/stores/advancedSearch'
 import { useFilterStore } from '@/stores/filter'
 import { useModelStore } from '@/stores/model'
 import { useAppStore } from '@/stores/app'
-import { logEvents } from '@/services/ExquisitorAPI'
+import { recordResearchEvent } from '@/services/researchLog'
 import type { AdvancedSearchPayload } from '@/types/chat'
 import type {
   ActiveFiltersDB,
@@ -437,15 +437,10 @@ function placeholderFor(f: FilterInfo) {
 
 // Logs the current selected values for a filter after the user changes it
 function onValueFilterChange(f: FilterInfo) {
-  logEvents([{
-    ts: Date.now(),
-    action: 'Update Advanced Search Filter ' + f.name,
-    session: appStore.session,
-    data: JSON.stringify({
-      filter: f.name,
-      values: (local.valueFilters[f.id] ?? []).map((v: any) => v.value),
-    }),
-  }])
+  recordResearchEvent('filter_change', 'filter', {
+    model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
+    filter_id: f.id, filter: f.name, values: local.valueFilters[f.id] ?? [],
+  })
 }
 
 /* ---------- parsing ---------- */
@@ -477,6 +472,11 @@ function parseRangeInput(f: FilterInfo, raw: string): number | null {
 // Debounces buildRangeLeaf per filter so rapid keystrokes don't trigger repeated rebuilds
 const rangeTimers = new Map<number, number>()
 function onRangeInput(f: FilterInfo) {
+  // Logged per input, not debounced, so no edit is lost
+  recordResearchEvent('filter_change', 'filter', {
+    model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
+    filter_id: f.id, filter: f.name, ...local.rangeInputs[f.id],
+  })
   const id = f.id
   const old = rangeTimers.get(id)
   if (old) window.clearTimeout(old)
@@ -531,13 +531,6 @@ function buildRangeLeaf(f: FilterInfo) {
     upper,
     false
   )
-
-  logEvents([{
-    ts: Date.now(),
-    action: 'Update Advanced Search Range Filter ' + f.name,
-    session: appStore.session,
-    data: JSON.stringify({ filter: f.name, op, a: aRaw, b: bRaw }),
-  }])
 }
 
 // Combines all selected value filters and range leaves into a single AND group for the API; 
@@ -623,12 +616,6 @@ function fileToDataURL(f: File): Promise<string> {
 
 // Collects the current form state into a payload and emits it to the parent to trigger a search
 async function search() {
-  logEvents([{
-    ts: Date.now(),
-    action: 'Execute Advanced Search',
-    session: appStore.session,
-  }])
-
   if (local.searchType === 'image') {
     local.queryName = URL.createObjectURL(file.value!)
     local.queryText = await fileToDataURL(file.value!)

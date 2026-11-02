@@ -151,6 +151,7 @@ const props = defineProps<{
   itemId: number
   modelId: number
 
+  requestId?: string
   // Prefetched by ResultGrid
   item: MediaItem | null
 
@@ -290,7 +291,7 @@ async function submit() {
       start,
       end,
       evalId: appStore.selectedEvaluation.id,
-    })
+    }, { itemId: props.itemId, requestId: props.requestId, surface: 'item_tile' })
     emitAdd(ILSets.Submitted)
     useSubmissionStore().show(result, `Video ${name}, ${(start / 1000).toFixed(1)}–${(end / 1000).toFixed(1)} s`)
   } finally {

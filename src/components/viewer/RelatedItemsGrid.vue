@@ -67,6 +67,7 @@
           <ItemTile
            :data-eid="eid(`itemtile_${id}`)"
            :item-id="id"
+           :request-id="requestId"
            :model-id="modelId"
            :item="itemFor(id)"
            :group-info="null"
@@ -172,7 +173,7 @@
           >
             <template #default="{ item: row, index }">
               <div
-               v-intersect="(visible: boolean) => visible && ensureLoaded(row)"
+               v-intersect="(visible: boolean) => visible && showRow(row)"
                class="dialog-row"
                :data-eid="eid(`dialog_row_${index}`)"
               >
@@ -187,6 +188,7 @@
                     <ItemTile
                      :data-eid="eid(`dialog_itemtile_${id}`)"
                      :item-id="id"
+                     :request-id="parentRequestId"
                      :model-id="modelId"
                      :item="itemFor(id)"
                      :group-info="null"
@@ -199,9 +201,9 @@
                      :remove-set="itemStore.isItemInPos(id, props.modelId) ? ILSets.Positives : itemStore.isItemInNeg(id, props.modelId) ? ILSets.Negatives : null"
                      :history-enabled="false"
                      :enable-hover-preview="false"
-                     @open="onSelect(id)"
-                     @add="onAdd"
-                     @remove="onRemove"
+                     @open="onSelect(id, true)"
+                     @add="onAdd($event, true)"
+                     @remove="onRemove($event, true)"
                     />
                   </div>
                 </div>
@@ -224,6 +226,7 @@
 </template>
 
 <script setup lang="ts">
+import { recordResearchEvent } from "@/services/researchLog"
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import ItemTile from '@/components/items/ItemTile.vue'
 import { useItemStore } from '@/stores/item'
@@ -233,6 +236,8 @@ import type MediaItem from '@/types/mediaitem'
 import { ILSets } from '@/types/mediaitem'
 
 const props = defineProps<{
+  requestId?: string
+  parentRequestId?: string
   modelId: number
   mediaItem: MediaItem
   relatedItems: number[]          // ids
@@ -241,7 +246,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'select-item', itemId: number): void
+  (e: 'select-item', itemId: number, requestId?: string): void
 }>()
 
 const itemStore = useItemStore()
@@ -295,12 +300,12 @@ function ensureLoaded(ids: number[]) {
     })
 }
 
-function onAdd(payload: { itemId: number; set: ILSets }) {
-  itemStore.addItemToSet(payload.itemId, props.modelId, payload.set)
+function onAdd(payload: { itemId: number; set: ILSets }, dialog = false) {
+  itemStore.addItemToSet(payload.itemId, props.modelId, payload.set, dialog ? props.parentRequestId : props.requestId)
 }
 
-function onRemove(payload: { itemId: number; set: ILSets }) {
-  itemStore.removeItemFromSet(payload.itemId, props.modelId, payload.set)
+function onRemove(payload: { itemId: number; set: ILSets }, dialog = false) {
+  itemStore.removeItemFromSet(payload.itemId, props.modelId, payload.set, dialog ? props.parentRequestId : props.requestId)
 }
 
 const selectedId = computed(() => props.mediaItem?.id ?? -1)
@@ -363,8 +368,14 @@ function loadMore(visible: boolean) {
 
 watch(displayedIds, ensureLoaded, { immediate: true })
 
-function onSelect(id: number) {
-  emit('select-item', id)
+function onSelect(id: number, dialog = false) {
+  const requestId = dialog ? props.parentRequestId : props.requestId
+  recordResearchEvent('result_click', 'result', {
+    surface: dialog ? 'related_dialog' : 'related_items',
+    relationship: !dialog && props.searchResults ? 'search_result' : 'related_to_selected',
+    item_id: id, parent_item_id: props.mediaItem.id, collection: collection.value, model_id: props.modelId,
+  }, requestId)
+  emit('select-item', id, requestId)
 }
 
 // --- Dialog visible count + virtual rows ---
@@ -401,6 +412,13 @@ watch(
   },
   { immediate: true }
 )
+function showRow(ids: number[]) {
+  recordResearchEvent('result_state', 'results', { surface: 'related_dialog', relationship: 'related_to_selected', ids, parent_item_id: props.mediaItem.id, collection: collection.value, model_id: props.modelId }, props.parentRequestId)
+  ensureLoaded(ids)
+}
+watch(() => JSON.stringify([displayedIds.value, props.requestId, collection.value]), () => {
+  recordResearchEvent('result_state', 'results', { surface: 'related_items', relationship: props.searchResults ? 'search_result' : 'related_to_selected', ids: displayedIds.value, parent_item_id: props.mediaItem.id, collection: collection.value, model_id: props.modelId }, props.requestId)
+}, { immediate: true, flush: 'post' })
 </script>
 
 <style scoped>

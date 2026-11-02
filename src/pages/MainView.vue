@@ -143,6 +143,7 @@
 </template>
 
 <script setup lang="ts">
+import { resultIds, resultRequestId, type ResultPage } from "@/types/results"
 import { ref } from 'vue'
 import ChatArea from '@/components/search/ChatArea.vue'
 import ResultGrid from '@/components/search/ResultGrid.vue'
@@ -191,26 +192,26 @@ onMounted(() => {
 
 const rf = ref(false)
   
-function updateResultIdsChat(resultIds: number[]) {
-  modelStore.activeModel!.grid[0].items = [...resultIds]
+function updateResultIdsChat(resultIds: ResultPage[]) {
+  modelStore.activeModel!.grid[0].pages = [...resultIds]
   rf.value = false
 }
   
-function updateResultIdsRF(resultIds: number[]) {
-  modelStore.activeModel!.grid[0].items = [...resultIds]
+function updateResultIdsRF(resultIds: ResultPage[]) {
+  modelStore.activeModel!.grid[0].pages = [...resultIds]
   rf.value = true
   chatStore.currentQueryId = ''
 }
   
-function updateResultIdsTemporal(resultIds: number[]) {
-  modelStore.activeModel!.grid[0].items = [...resultIds]
+function updateResultIdsTemporal(resultIds: ResultPage[]) {
+  modelStore.activeModel!.grid[0].pages = [...resultIds]
   rf.value = false
 }
 
 async function updateSelectedItem (itemId: number) {
   // The item is selected right away and its video loads in the background.
   // Open the panel now so it doesn't look like the page is hanging.
-  const loading = itemStore.setSelectedItem(itemId)
+  const loading = itemStore.setSelectedItem(itemId, resultRequestId(modelStore.activeModel!.grid[0].pages, itemId))
   showMedia.value = true
   // Awaited so load errors still reach the global error handler
   await loading
@@ -222,21 +223,21 @@ function updateModel() {
   rf.value = false
   const chat = useChatStore().getOrCreateChat(activeModel.value!.id)
   if (chat.length > 0) {
-    modelStore.activeModel!.grid[0].items = chat.slice().reverse()[0].resultIds
+    modelStore.activeModel!.grid[0].pages = chat.slice().reverse()[0].resultPages
     // useChatStore().currentResultsQuery = chat.queries.slice().reverse()[0].text 
   } else {
-    modelStore.activeModel!.grid[0].items = []
+    modelStore.activeModel!.grid[0].pages = []
   }
 }
 
 async function loadMoreResults() {
   if (rf.value) {
-    modelStore.activeModel!.grid[0].items = [ ...await feedbackStore.getFeedbackResults(true) ]
+    modelStore.activeModel!.grid[0].pages = [ ...await feedbackStore.getFeedbackResults(true) ]
   } else {
     const qIdx = chatStore.chatSessions.get(activeModel.value!.id)!.findIndex(
       (val) => val.id === chatStore.currentQueryId
     )
-    modelStore.activeModel!.grid[0].items = await chatStore.search(
+    modelStore.activeModel!.grid[0].pages = await chatStore.search(
       activeModel.value!.id,
       '', '',
       true, '', '',
@@ -270,7 +271,7 @@ async function onAdvancedSubmit(p: AdvancedSearchPayload) {
     false
   )
 
-  await itemStore.fetchMediaItems(ids, modelId, collection)
+  await itemStore.fetchMediaItems(resultIds(ids), modelId, collection)
 
   updateResultIdsChat(ids)
 }

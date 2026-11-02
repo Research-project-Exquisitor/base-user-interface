@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { recordResearchEvent } from '@/services/researchLog'
 import { defineStore } from 'pinia'
 import { computed, reactive, ref } from 'vue'
 import Model, { Settings, ResourceValues, GridGroup } from '@/types/model'
 import { ExqRFRequest } from '@/types/exq'
-import { searchRF, initModel, removeModel } from '@/services/ExquisitorAPI'
+import { searchRF } from '@/services/ExquisitorAPI'
 import { useFeedbackStore } from './feedback'
 import { useFilterStore } from './filter'
 import { useItemStore } from './item'
@@ -28,13 +29,13 @@ export const useModelStore = defineStore('model', () => {
   function initializeModelItems(modelId: number) {
     let grp : GridGroup = { 
       itemsToShow: models[modelId].settings.itemsToShow,
-      items: [] 
+      pages: []
     }
     let rngItems = new Set<number>()
     while (rngItems.size != grp.itemsToShow) {
       rngItems.add(Math.floor(Math.random()*totalItems.value)+1)
     }
-    grp.items = Array.from(rngItems)
+    grp.pages = [{ ids: Array.from(rngItems) }]
     models[modelId].grid.push(grp)
   }
   
@@ -42,6 +43,7 @@ export const useModelStore = defineStore('model', () => {
     console.log('Changing active model to ', modelId)
     let indx = models.findIndex(e => e.id === modelId)
     activeModel.value = models[indx]
+    recordResearchEvent('display_change', 'session', { change: 'model_select', model_id: modelId, collection: activeModel.value.collection })
   }
   
   function addModel(session: string, collection: string, first: boolean, name?: string) : void {
@@ -50,14 +52,14 @@ export const useModelStore = defineStore('model', () => {
     const mid = nModels.value
     const mname = 'Tab ' + (mid+1)
     const settings = computed(() => defaultSettings())
-    initModel({ modelId: mid, session: session, collection: collection })
+    recordResearchEvent('display_change', 'session', { change: 'model_open', model_id: mid, collection })
     models.push({ 
       session: session, 
       id: mid, 
       collection: collection,
       name: mname, 
       settings: settings.value,
-      grid: [{ itemsToShow: defaultSettings().itemsToShow, items: [] }],
+      grid: [{ itemsToShow: defaultSettings().itemsToShow, pages: [] }],
     })
     activeModel.value = models[models.length-1]
     useFeedbackStore().getOrCreateRF(activeModel.value!.id)
@@ -77,7 +79,7 @@ export const useModelStore = defineStore('model', () => {
     let m : Model = models.splice(indx, 1)[0]
     // After the splice, so this tab no longer counts as using the collection
     useFilterStore().releaseFilters(m.id, m.collection)
-    removeModel({ session: session, modelId: model.id, collection: m.collection })
+    recordResearchEvent('display_change', 'session', { change: 'model_close', model_id: model.id, collection: m.collection })
     console.log('Removed Model:', m.id)
   }
   
@@ -103,7 +105,7 @@ export const useModelStore = defineStore('model', () => {
     models[idx].grid = []
     models[idx].activeFilters?.clear()
     models[idx].activeSearch = []
-    initModel({ modelId: model.id, session: model.session, collection: model.collection })
+    recordResearchEvent('display_change', 'session', { change: 'model_reset', model_id: model.id, collection: model.collection })
     initializeModelItems(model.id)
   }
   
@@ -127,29 +129,21 @@ export const useModelStore = defineStore('model', () => {
   async function getSuggestions(req: ExqRFRequest, gridIdx: number, itemIdx?: number) {
     let suggs = await searchRF(req) // Call Exquisitor
     let model = models.filter(e => e.id === req.session_info.modelId)[0] // Get model
-    if (req.n == model.settings.itemsToShow) { // Is it a full update?
-      // Returned items NOT equal to the requested amount
-      if (suggs.suggestions.length != req.n) {
-        // Remove grid items
-        model.grid[gridIdx].items.splice(0, model.grid[0].items.length) 
-        // Add suggestions to grid
-        for (let i = 0; i < suggs.suggestions.length; i++) {
-          model.grid[gridIdx].items.push(suggs.suggestions[i]);
-        }
-      }
-      // Returned items equal to the requested amount
-      if (suggs.suggestions.length == req.n) {
-        // Replace grid items with suggestions
-        for (let i = 0; i < req.n; i++) {
-          model.grid[gridIdx].items[i] = suggs.suggestions[i];
-        }
-      } 
-    } else if (req.n == 1 && itemIdx !== undefined) {
-      console.log('Replace item:', itemIdx!)
-      console.log('Replace', model.grid[gridIdx].items[itemIdx], 'from index:', itemIdx)
-      model.grid[gridIdx].items[itemIdx] = suggs.suggestions[0]
-      console.log('Suggs:', suggs.suggestions)
-      console.log('Suggs.suggestions[0]:', suggs.suggestions[0])
+    const grid = model.grid[gridIdx]
+    const page = { requestId: suggs.request_id, ids: suggs.suggestions }
+    if (req.n === model.settings.itemsToShow) grid.pages = [page]
+    else if (req.n === 1 && itemIdx !== undefined) {
+      // Split at the replaced slot so old results keep their original request.
+      let offset = 0
+      grid.pages = grid.pages.flatMap(previous => {
+        const index = itemIdx! - offset
+        offset += previous.ids.length
+        if (index < 0 || index >= previous.ids.length) return [previous]
+        return [
+          { ...previous, ids: previous.ids.slice(0, index) }, page,
+          { ...previous, ids: previous.ids.slice(index + 1) },
+        ].filter(p => p.ids.length)
+      })
     }
   }
   

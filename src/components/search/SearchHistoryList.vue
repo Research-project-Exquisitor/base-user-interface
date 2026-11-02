@@ -12,11 +12,11 @@
          :data-eid="eid(`item_${item.id}`)"
          class="history-item pa-2"
          :class="{ 'history-item--active': item.id === currentQueryId }"
-         @click="$emit('show-results', item.id, item.resultIds)"
+         @click="$emit('show-results', item.id, item.resultPages)"
         >
           <div class="row-wrap" :class="{ 'row-wrap--active': item.id === currentQueryId }">
             <!-- top line -->
-            <div class="row-top" @click="$emit('show-results', item.id, item.resultIds)">
+            <div class="row-top" @click="$emit('show-results', item.id, item.resultPages)">
               <div class="row-time text-caption opacity-70" :data-eid="eid(`time_${item.id}`)">
                 {{ formatTime(item.timestamp) }}
               </div>
@@ -143,6 +143,7 @@
 </template>
 
 <script setup lang="ts">
+import type { ResultPage } from "@/types/results"
 import { computed } from 'vue'
 import { useFilterStore } from '@/stores/filter'
 import { useModelStore } from '@/stores/model'
@@ -160,7 +161,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:temporalSelection', v: ChatQuery[]): void
-  (e: 'show-results', queryId: string, resultIds: number[]): void
+  (e: 'show-results', queryId: string, resultIds: ResultPage[]): void
   (e: 'open-advanced', q: ChatQuery): void
 }>()
 

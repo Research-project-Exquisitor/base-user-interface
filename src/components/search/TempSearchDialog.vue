@@ -153,8 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { logEvents } from '@/services/logApi';
-import { useAppStore } from '@/stores/app';
+import { recordResearchEvent } from '@/services/researchLog'
 import { useFilterStore } from '@/stores/filter';
 import { useModelStore } from '@/stores/model';
 import { useSearchIndexStore } from '@/stores/searchIndex';
@@ -199,12 +198,12 @@ const hops = ref<ChatQuery[]>([])
 const emit = defineEmits(['show-temporal-results'])
 
 function log(action: string, data?: object) {
-  logEvents([{
-    ts: Date.now(),
-    action: action,
-    session: useAppStore().session,
-    ...(data !== undefined && { data: JSON.stringify(data) }),
-  }])
+  recordResearchEvent('display_change', 'search', {
+    surface: 'temporal_dialog', action, ...data,
+    ordered_query_ids: hops.value.map(q => q.id),
+    max_videos: maxVideos.value, chains_per_video: chainsPerVideo.value,
+    model_id: modelStore.activeModel!.id, collection: collection.value,
+  })
 }
 
 function close() {
@@ -241,8 +240,8 @@ watch(isOpen, (newVal) => {
     indexStore.load(collection.value)
     log('Open Temporal Search Dialog')
   } else {
-    hops.value = []
     log('Close Temporal Search Dialog')
+    hops.value = []
   }
 })
 

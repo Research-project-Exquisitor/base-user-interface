@@ -41,8 +41,7 @@
 
 
 <script setup lang="ts">
-import { logEvents } from '@/services/ExquisitorAPI';
-import { useAppStore } from '@/stores/app';
+import { recordResearchEvent } from "@/services/researchLog"
 import { ref } from 'vue';
 
 interface Props {
@@ -56,20 +55,8 @@ const showDialog = ref(false)
 
 const emit = defineEmits(['submit'])
 
-watch(showDialog, (newVal) => {
-  if (!newVal) {
-    logEvents([{
-      ts: Date.now(),
-      action: `Close Delete Dialog`,
-      session: useAppStore().session,
-    }])
-  } else {
-    logEvents([{
-      ts: Date.now(),
-      action: 'Open Delete Dialog for'+props.title,
-      session: useAppStore().session,
-    }])
-  }
+watch(showDialog, (open) => {
+  recordResearchEvent('display_change', 'session', { surface: 'delete_dialog', model_id: props.id, title: props.title, change: open ? 'open' : 'close' })
 })
 
 </script>

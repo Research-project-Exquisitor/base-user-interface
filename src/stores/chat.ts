@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { resultIds as flattenResults, type ResultPage } from '@/types/results'
 import { searchImage, searchText } from '@/services/ExquisitorAPI'
 import { ChatQuery, ExqSearchResponse } from '@/types/chat'
 import { ExqImageSearchRequest, ExqTextSearchRequest } from '@/types/exq'
@@ -38,7 +39,7 @@ export const useChatStore = defineStore('chat', () => {
     activeFilters: ActiveFiltersDB | undefined = undefined,
     refresh: boolean,
     n?: number
-  ): Promise<number[]> {
+  ): Promise<ResultPage[]> {
     let seen: number[] = []
     let query = queryText
     let qIdx = -1
@@ -46,7 +47,7 @@ export const useChatStore = defineStore('chat', () => {
       qIdx = chatSessions.get(modelId)!.findIndex(
         (val) => val.id === currentQueryId.value
       )
-      seen = chatSessions.get(modelId)![qIdx].resultIds
+      seen = flattenResults(chatSessions.get(modelId)![qIdx].resultPages)
       query = chatSessions.get(modelId)![qIdx].text
       searchType = chatSessions.get(modelId)![qIdx].searchType
       // searchModel = chatSessions.get(modelId)![qIdx].searchModel
@@ -100,34 +101,19 @@ export const useChatStore = defineStore('chat', () => {
         name: queryName,
         text: query,
         timestamp: Date.now(),
-        resultIds: resultIds.suggestions,
-        resultRequestIds: resultIds.request_id
-          ? Object.fromEntries(resultIds.suggestions.map(id => [id, resultIds.request_id!]))
-          : undefined,
+        resultPages: [{ requestId: resultIds.request_id, ids: resultIds.suggestions }],
         searchType: searchType,
         searchModel: searchModel,
         filters: activeFilters
       })
       currentQueryId.value = chat![chat!.length-1].id
-      return resultIds.suggestions
+      return chat![chat!.length-1].resultPages
     } else {
-      if (!refresh) {
-        console.log('Using old resultIds array')
-        chatSessions.get(modelId)![qIdx].resultIds.push(...resultIds.suggestions)
-      } else {
-        console.log('New resultIds')
-        chatSessions.get(modelId)![qIdx].resultIds = resultIds.suggestions
-      }
-      chatSessions.get(modelId)![qIdx].filters = activeFilters
       const entry = chatSessions.get(modelId)![qIdx]
-      if (refresh) entry.resultRequestIds = {}
-      if (resultIds.request_id) {
-        entry.resultRequestIds = {
-          ...entry.resultRequestIds,
-          ...Object.fromEntries(resultIds.suggestions.map(id => [id, resultIds.request_id!])),
-        }
-      }
-      return chatSessions.get(modelId)![qIdx].resultIds
+      const page = { requestId: resultIds.request_id, ids: resultIds.suggestions }
+      entry.resultPages = refresh ? [page] : [...entry.resultPages, page]
+      entry.filters = activeFilters
+      return entry.resultPages
     }
   }
   
