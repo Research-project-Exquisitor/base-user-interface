@@ -130,6 +130,7 @@
           v-for="id in shownIds"
           :key="`${activeModelId}-${id}`"
           :item-id="id"
+          surface="result_grid"
           :request-id="resultRequestId(gridPages, id)"
           :model-id="activeModelId"
           :item="itemsById.get(id) ?? null"
@@ -176,6 +177,7 @@
                 >
                   <ItemTile
                     :item-id="id"
+                    surface="result_grid"
                     :request-id="resultRequestId(gridPages, id)"
                     :model-id="activeModelId"
                     :item="itemsById.get(id) ?? null"

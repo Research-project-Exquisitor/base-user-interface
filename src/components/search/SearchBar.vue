@@ -11,6 +11,8 @@
       clearable
       label="Search"
       @keyup.enter="emitSearch()"
+      @input="recordTextInput('search_bar', $event, context())"
+      @click:clear="recordTextInput('search_bar', 'clear', context())"
     />
 
     <div class="d-flex align-center ga-2 pt-2" :data-eid="eid('actions')">
@@ -65,6 +67,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { recordTextInput } from '@/services/researchLog'
+import { useModelStore } from '@/stores/model'
 
 const props = defineProps<{
   modelId: number
@@ -88,6 +92,8 @@ const text = computed({
   get: () => props.modelValue,
   set: (v: string) => emit('update:modelValue', v)
 })
+
+const context = () => ({ model_id: props.modelId, collection: useModelStore().getModelCollection(props.modelId) })
 
 function emitSearch() {
   emit('search')

@@ -64,6 +64,7 @@
          v-for="it in items"
          :key="it.id"
          :data-eid="eid(`itemtile_${it.id}`)"
+         surface="sets_drawer"
          :item-id="it.id"
          :model-id="modelId"
          :item="it"

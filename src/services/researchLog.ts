@@ -39,3 +39,17 @@ export function recordResearchEvent(
   })
   return event
 }
+
+/** One change to a query box, logged raw: the full text after the change and
+ * how it changed (the browser's inputType, e.g. insertText or insertFromPaste,
+ * or 'clear' for the clear button). Not debounced, so no edit is lost.
+ */
+export function recordTextInput(surface: string, event: Event | 'clear', data: Record<string, unknown>): void {
+  const input = event === 'clear' ? null : event.target as HTMLInputElement | null
+  recordResearchEvent('text_input', 'search', {
+    surface,
+    text: input?.value ?? '',
+    input_type: event === 'clear' ? 'clear' : (event as InputEvent).inputType ?? null,
+    ...data,
+  })
+}

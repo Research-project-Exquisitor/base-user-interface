@@ -181,7 +181,8 @@
              hide-details
              clearable
              @keydown.enter="searchInVideo"
-             @click:clear="clearVideoSearch"
+             @input="recordTextInput('video_search', $event, videoSearchContext())"
+             @click:clear="recordTextInput('video_search', 'clear', videoSearchContext()); clearVideoSearch()"
             />
           </template>
         </RelatedItemsGrid>
@@ -191,7 +192,7 @@
 </template>
 
 <script setup lang="ts">
-import { recordResearchEvent } from "@/services/researchLog"
+import { recordResearchEvent, recordTextInput } from "@/services/researchLog"
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AlbumViewer from './AlbumViewer.vue'
 import AudioPlayer from './AudioPlayer.vue'
@@ -413,6 +414,8 @@ function updateSelected(itemId?: number, requestId?: string) {
 // --- In-video search ---
 // Text search limited to this video. The results reorder the related grid
 const videoRequestId = ref<string>()
+const videoSearchContext = () => ({ item_id: selectedItem.value?.id, video_id: videoId.value,
+  model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value) })
 const videoQuery = ref<string | null>('')
 const videoResults = ref<number[] | null>(null)
 const videoSearching = ref(false)

@@ -137,7 +137,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import type MediaItem from '@/types/mediaitem'
 import { GroupMetadata, ILSets, MediaType } from '@/types/mediaitem'
 import { useItemStore } from '@/stores/item'
@@ -146,12 +146,15 @@ import { useModelStore } from '@/stores/model'
 import { useErrorStore } from '@/stores/error'
 import { useSubmissionStore } from '@/stores/submission'
 import { submitAnswer } from '@/services/ExquisitorAPI'
+import { recordResearchEvent } from '@/services/researchLog'
 
 const props = defineProps<{
   itemId: number
   modelId: number
 
   requestId?: string
+  // Where the tile is shown, e.g. result_grid or sets_drawer, for its events
+  surface?: string
   // Prefetched by ResultGrid
   item: MediaItem | null
 
@@ -403,7 +406,29 @@ function stopPreview() {
   resetVideoElement()
 }
 
+// Hovering a tile is how results are inspected before a click. Logged raw when
+// the hover ends, without a minimum duration, so analysis decides what counts.
+let hoverStartMs: number | undefined
+
+function recordHover() {
+  if (hoverStartMs === undefined) return
+  recordResearchEvent('hover', 'result', {
+    surface: props.surface,
+    item_id: props.itemId,
+    model_id: props.modelId,
+    collection: useModelStore().getModelCollection(props.modelId),
+    start_ms: hoverStartMs,
+    end_ms: Date.now(),
+    preview: canHoverPlay.value,
+  }, props.requestId)
+  hoverStartMs = undefined
+}
+
+// A tile can disappear while hovered, e.g. when a new search replaces the grid
+onBeforeUnmount(recordHover)
+
 function onEnter() {
+  hoverStartMs = Date.now()
   hovering.value = true
   loadMetadataForPreview()
   // Try immediately. If metadata or the src arrive while still hovering, the watcher below starts it.
@@ -411,6 +436,7 @@ function onEnter() {
 }
 
 function onLeave() {
+  recordHover()
   hovering.value = false
   stopPreview()
 }
