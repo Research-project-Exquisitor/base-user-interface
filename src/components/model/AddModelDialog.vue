@@ -61,6 +61,7 @@ function onConfirm() {
 }
   
 watch(show, (open) => {
+  if (open) selectedCollection.value = ''
   recordResearchEvent('display_change', 'session', { surface: 'add_model_dialog', change: open ? 'open' : 'close' })
 })
 </script>

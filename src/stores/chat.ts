@@ -1,6 +1,6 @@
-import { resultIds as flattenResults, type ResultPage } from '@/types/results'
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { resultIds as flattenResults, type ResultPage } from '@/types/results'
 import { searchImage, searchText } from '@/services/ExquisitorAPI'
 import { ChatQuery, ExqSearchResponse } from '@/types/chat'
 import { ExqImageSearchRequest, ExqTextSearchRequest } from '@/types/exq'
@@ -50,7 +50,7 @@ export const useChatStore = defineStore('chat', () => {
       seen = flattenResults(chatSessions.get(modelId)![qIdx].resultPages)
       query = chatSessions.get(modelId)![qIdx].text
       searchType = chatSessions.get(modelId)![qIdx].searchType
-      searchModel = chatSessions.get(modelId)![qIdx].searchModel
+      // searchModel = chatSessions.get(modelId)![qIdx].searchModel
     }
     let n_items = modelStore.activeModel!.settings.itemsToShow
     if (n !== undefined) {

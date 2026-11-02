@@ -143,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ResultPage } from "@/types/results"
+import { resultIds, resultRequestId, type ResultPage } from "@/types/results"
 import { ref } from 'vue'
 import ChatArea from '@/components/search/ChatArea.vue'
 import ResultGrid from '@/components/search/ResultGrid.vue'
@@ -211,7 +211,7 @@ function updateResultIdsTemporal(resultIds: ResultPage[]) {
 async function updateSelectedItem (itemId: number) {
   // The item is selected right away and its video loads in the background.
   // Open the panel now so it doesn't look like the page is hanging.
-  const loading = itemStore.setSelectedItem(itemId, modelStore.activeModel!.grid[0].pages.find(page => page.ids.includes(itemId))?.requestId)
+  const loading = itemStore.setSelectedItem(itemId, resultRequestId(modelStore.activeModel!.grid[0].pages, itemId))
   showMedia.value = true
   // Awaited so load errors still reach the global error handler
   await loading
@@ -223,12 +223,9 @@ function updateModel() {
   rf.value = false
   const chat = useChatStore().getOrCreateChat(activeModel.value!.id)
   if (chat.length > 0) {
-    const query = chat[chat.length - 1]
-    chatStore.currentQueryId = query.id
-    modelStore.activeModel!.grid[0].pages = query.resultPages
+    modelStore.activeModel!.grid[0].pages = chat.slice().reverse()[0].resultPages
     // useChatStore().currentResultsQuery = chat.queries.slice().reverse()[0].text 
   } else {
-    chatStore.currentQueryId = ''
     modelStore.activeModel!.grid[0].pages = []
   }
 }
@@ -274,7 +271,7 @@ async function onAdvancedSubmit(p: AdvancedSearchPayload) {
     false
   )
 
-  await itemStore.fetchMediaItems(ids.flatMap(page => page.ids), modelId, collection)
+  await itemStore.fetchMediaItems(resultIds(ids), modelId, collection)
 
   updateResultIdsChat(ids)
 }

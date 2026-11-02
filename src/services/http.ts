@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-export const exqURI = 'http://localhost:8000'
+export const exqURI = 'https://localhost:5000'
 export const mock = false
 
 export const getMainURI = () => exqURI

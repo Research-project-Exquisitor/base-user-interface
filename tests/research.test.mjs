@@ -29,7 +29,7 @@ let searchResults = [18, 2, 41]
 globalThis.fetch = async (url, init) => {
   const request = { url, headers: init.headers, body: JSON.parse(init.body) }
   requests.push(request)
-  if (url.endsWith('/exq/log/clientEvent')) return new Response('{"accepted":1}', { status: 202 })
+  if (url.endsWith('/exq/log/clientEventV2')) return new Response('{"accepted":1}', { status: 202 })
   if (failSearch) return new Response('test failure', { status: 500 })
   return new Response(JSON.stringify({ suggestions: searchResults }), { status: 200 })
 }
@@ -40,7 +40,7 @@ test('all search families share linked submission, headers and response events',
   client.setSessionId('test-session')
   for (const [endpoint, invoke] of [
     ['clip', () => client.searchText(input)],
-    ['text', () => client.searchText({ ...input, search_model: 'text' })],
+    ['clip', () => client.searchText({ ...input, search_model: 'text' })],
     ['caption', () => client.searchText({ ...input, search_model: 'caption' })],
     ['aggregate', () => client.searchText({ ...input, search_model: 'aggregate' })],
     ['image', () => client.searchImage({ ...input, image_b64: 'image' })],
@@ -69,7 +69,7 @@ test('failed searches preserve request link and emit errors', async () => {
   failSearch = true
   await assert.rejects(client.searchText(input), /test failure/)
   failSearch = false
-  const events = requests.filter(r => r.url.endsWith('/clientEvent')).flatMap(r => r.body)
+  const events = requests.filter(r => r.url.endsWith('/clientEventV2')).flatMap(r => r.body)
   assert.deepEqual(events.map(e => e.type), ['query_submission', 'error'])
   assert.equal(events[0].request_id, events[1].request_id)
 })
@@ -91,12 +91,11 @@ test('result pages preserve old and load-more request provenance', () => {
   assert.equal(client.resultRequestId(pages, 999), undefined)
 })
 
-test('local answer capture emits an event without calling DRES or inventing a verdict', async () => {
+test('answer submissions are logged before they are sent to DRES', async () => {
   requests.length = 0
-  const result = await client.submitAnswer({ session_info, qa: true, text: 'answer', evalId: '' }, { surface: 'text_answer' })
-  assert.equal(result.submission, 'CAPTURED')
-  assert.equal(requests.length, 1)
+  await client.submitAnswer({ session_info, qa: true, text: 'answer', evalId: 'eval-1' }, { surface: 'text_answer' })
+  assert.deepEqual(requests.map(r => r.url.split('/').slice(-2).join('/')), ['log/clientEventV2', 'dres/submit'])
   assert.equal(requests[0].body[0].type, 'answer_submission')
-  assert.equal(requests[0].body[0].data.mode, 'local')
+  assert.equal(requests[0].body[0].data.surface, 'text_answer')
   assert.equal('verdict' in requests[0].body[0].data, false)
 })

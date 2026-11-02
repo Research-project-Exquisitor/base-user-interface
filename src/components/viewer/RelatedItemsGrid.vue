@@ -67,7 +67,7 @@
           <ItemTile
            :data-eid="eid(`itemtile_${id}`)"
            :item-id="id"
-          :request-id="requestId"
+           :request-id="requestId"
            :model-id="modelId"
            :item="itemFor(id)"
            :group-info="null"
@@ -188,7 +188,7 @@
                     <ItemTile
                      :data-eid="eid(`dialog_itemtile_${id}`)"
                      :item-id="id"
-          :request-id="parentRequestId"
+                     :request-id="parentRequestId"
                      :model-id="modelId"
                      :item="itemFor(id)"
                      :group-info="null"

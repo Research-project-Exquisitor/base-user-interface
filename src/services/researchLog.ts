@@ -34,7 +34,7 @@ export function recordResearchEvent(
     // Snapshot mutable inputs (seen lists, filters, results) at capture time.
     data: JSON.parse(JSON.stringify(data)),
   }
-  void post('/exq/log/clientEvent', [event]).catch((error: unknown) => {
+  void post('/exq/log/clientEventV2', [event]).catch((error: unknown) => {
     console.error('Research event delivery failed', error)
   })
   return event

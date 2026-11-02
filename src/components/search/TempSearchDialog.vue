@@ -245,9 +245,6 @@ watch(isOpen, (newVal) => {
   }
 })
 
-watch([maxVideos, chainsPerVideo], () => {
-  if (isOpen.value) log('settings_changed', { max_videos: maxVideos.value, chains_per_video: chainsPerVideo.value })
-})
 </script>
 
 <style scoped>

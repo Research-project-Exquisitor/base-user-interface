@@ -1,6 +1,6 @@
-import { recordResearchEvent } from './researchLog'
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { recordResearchEvent } from './researchLog'
 import type { ExqInitResponse } from '@/types/exq'
 import { exqURI, get, mock, setSessionId } from './http'
 import {

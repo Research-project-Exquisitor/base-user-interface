@@ -1,6 +1,7 @@
-import { recordResearchEvent } from '@/services/researchLog'
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { recordResearchEvent } from '@/services/researchLog'
+import { resultRequestId } from '@/types/results'
 import { GroupMetadata, ILSets, } from "@/types/mediaitem";
 import type MediaItem from "@/types/mediaitem";
 import { defineStore } from "pinia";
@@ -123,11 +124,7 @@ export const useItemStore = defineStore('item', () => {
     const collection = modelStore.getModelCollection(modelId)
     ensureItemSetEntry(itemId, modelId)
     const sets = items.get(collection)!.get(itemId)!.currentSets!.get(modelId)!
-    if (!sets[ilset] && [ILSets.Positives, ILSets.Negatives, ILSets.Excluded].includes(ilset)) {
-      recordResearchEvent('relevance_label', 'result', {
-        item_id: itemId, model_id: modelId, collection, action: 'add', label: ILSets[ilset],
-      }, requestId ?? modelStore.getModel(modelId).grid[0]?.pages.find(page => page.ids.includes(itemId))?.requestId ?? selectedRequestIds.get(modelId))
-    }
+    if (!sets[ilset]) logLabel('add', itemId, modelId, collection, ilset, requestId)
     switch (ilset) {
       case ILSets.Positives:
         sets[ILSets.Positives] = true
@@ -164,13 +161,16 @@ export const useItemStore = defineStore('item', () => {
     return true
   } 
   
+  // Labels the user sets; links to the search that showed the item, else to the opened item
+  function logLabel(action: 'add' | 'remove', itemId: number, modelId: number, collection: string, ilset: ILSets, requestId?: string) {
+    if (![ILSets.Positives, ILSets.Negatives, ILSets.Excluded].includes(ilset)) return
+    requestId ??= resultRequestId(modelStore.getModel(modelId).grid[0]?.pages ?? [], itemId) ?? selectedRequestIds.get(modelId)
+    recordResearchEvent('relevance_label', 'result', { item_id: itemId, model_id: modelId, collection, action, label: ILSets[ilset] }, requestId)
+  }
+
   function removeItemFromSet(itemId: number, modelId: number, ilset: ILSets, requestId?: string) : void {
     const collection = modelStore.getModelCollection(modelId)
-    const wasSet = items.get(collection)!.get(itemId)!.currentSets!.get(modelId)![ilset]
-    if (wasSet && [ILSets.Positives, ILSets.Negatives, ILSets.Excluded].includes(ilset)) {
-      recordResearchEvent('relevance_label', 'result', { item_id: itemId, model_id: modelId, collection, action: 'remove', label: ILSets[ilset] },
-        requestId ?? modelStore.getModel(modelId).grid[0]?.pages.find(page => page.ids.includes(itemId))?.requestId ?? selectedRequestIds.get(modelId))
-    }
+    if (items.get(collection)!.get(itemId)!.currentSets!.get(modelId)![ilset]) logLabel('remove', itemId, modelId, collection, ilset, requestId)
     items.get(collection)!.get(itemId)!.currentSets!.get(modelId)![ilset] = false
     setAddedAtMap(modelId, ilset).delete(itemId)
   }

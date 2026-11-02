@@ -1,6 +1,6 @@
-import type { ResultPage } from '@/types/results'
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import type { ResultPage } from '@/types/results'
 import { searchTemporal } from "@/services/searchApi"
 import { ChatQuery } from "@/types/chat"
 import { ExqTemporalChain, ExqTemporalHop, ExqTemporalSearchRequest } from "@/types/exq"

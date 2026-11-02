@@ -73,7 +73,6 @@
       <template v-if="selectedItem && selectedGroup && isGroupVideo">
         <video
          ref="videoPlayer"
-         :key="selectedGroup.src"
          :data-eid="eid('video_player')"
          :data-looping="loopSegment ? '1' : '0'"
          :poster="selectedItem.thumbPath"
@@ -163,8 +162,8 @@
          :related-items="selectedGroup.items"
          :loading="!selectedGroup.itemsLoaded"
          :search-results="videoResults"
-          :request-id="videoRequestId ?? itemStore.selectedRequestIds.get(activeModelId)"
-          :parent-request-id="itemStore.selectedRequestIds.get(activeModelId)"
+         :request-id="videoRequestId ?? itemStore.selectedRequestIds.get(activeModelId)"
+         :parent-request-id="itemStore.selectedRequestIds.get(activeModelId)"
          @select-item="updateSelected"
         >
           <template #search>
@@ -328,7 +327,6 @@ function syncVideo() {
   if (!vid || !src || !isGroupVideo.value) return
   refreshPlaybackContext()
 
-
   if (lastVideoSrc.value !== src) {
     // For a new video, #t= makes the browser fetch from the shot's position
     // instead of loading from 0 and then seeking
@@ -346,7 +344,7 @@ function syncVideo() {
 // Runs after render so the <video> element exists. startMs is included because a
 // related shot's metadata can arrive after it was selected
 watch(
-  [() => selectedGroup.value?.src, () => selectedItem.value?.id, () => segment.value.startMs],
+  () => [selectedGroup.value?.src, selectedItem.value?.id, segment.value.startMs] as const,
   syncVideo,
   { flush: 'post' }
 )
@@ -392,8 +390,6 @@ function onLoadedMetadata() {
   if (vid && segment.value.hasSegment && Math.abs(vid.currentTime - startSec.value) > 0.5) {
     seekVideo(startSec.value, 'segment_navigation')
   }
-
-
 }
 
 function onTimeUpdate() {
@@ -522,7 +518,7 @@ function recordPlayback(action: string, seek: boolean, event: Event) {
   if (seek) pendingSeek = undefined
 }
 
-watch(() => [selectedItem.value?.id, selectedGroup.value?.src, segment.value.startMs, segment.value.endMs], () => {
+watch(() => [selectedItem.value?.id, selectedGroup.value?.src, segment.value.startMs], () => {
   if (!selectedItem.value || !isGroupVideo.value) return
   recordResearchEvent('display_change', 'video', {
     change: 'segment_open', item_id: selectedItem.value.id, video_id: videoId.value,

@@ -130,7 +130,7 @@
           v-for="id in shownIds"
           :key="`${activeModelId}-${id}`"
           :item-id="id"
-          :request-id="gridPages.find(page => page.ids.includes(id))?.requestId"
+          :request-id="resultRequestId(gridPages, id)"
           :model-id="activeModelId"
           :item="itemsById.get(id) ?? null"
           :group-info="getGroupInfoForItem(id)"
@@ -176,7 +176,7 @@
                 >
                   <ItemTile
                     :item-id="id"
-          :request-id="gridPages.find(page => page.ids.includes(id))?.requestId"
+                    :request-id="resultRequestId(gridPages, id)"
                     :model-id="activeModelId"
                     :item="itemsById.get(id) ?? null"
                     :group-info="getGroupInfoForItem(id)"
@@ -218,7 +218,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ResultPage } from "@/types/results"
+import { resultIds, resultRequestId, type ResultPage } from "@/types/results"
 import { computed, reactive, ref, watch } from 'vue'
 import ItemTile from '@/components/items/ItemTile.vue'
 import { useModelStore } from '@/stores/model'
@@ -277,7 +277,7 @@ const emit = defineEmits<{
 }>()
 
 const gridPages = computed(() => modelStore.activeModel!.grid[0].pages)
-const gridIds = computed(() => gridPages.value.flatMap(page => page.ids))
+const gridIds = computed(() => resultIds(gridPages.value))
 
 // Tile sizing
 const tileWidth = computed(() => useAppStore().globalThumbSize)
@@ -525,32 +525,31 @@ function onLoadMore() {
 }
 
 function onOpen(itemId: number) {
-  const requestId = gridPages.value.find(page => page.ids.includes(itemId))?.requestId
   recordResearchEvent('result_click', 'result', {
     item_id: itemId,
     collection: collection.value,
     model_id: activeModelId.value,
     surface: 'result_grid',
-  }, requestId)
+  }, resultRequestId(gridPages.value, itemId))
   emit('selected', itemId)
 }
 
 function onAdd(payload: { itemId: number; set: ILSets }) {
-  itemStore.addItemToSet(payload.itemId, activeModelId.value, payload.set, gridPages.value.find(page => page.ids.includes(payload.itemId))?.requestId)
+  itemStore.addItemToSet(payload.itemId, activeModelId.value, payload.set)
 }
 
 function onRemove(payload: { itemId: number; set: ILSets }) {
-  itemStore.removeItemFromSet(payload.itemId, activeModelId.value, payload.set, gridPages.value.find(page => page.ids.includes(payload.itemId))?.requestId)
+  itemStore.removeItemFromSet(payload.itemId, activeModelId.value, payload.set)
 }
-watch(() => JSON.stringify({
-  model_id: activeModelId.value, collection: collection.value,
-  ids: shownIds.value, pages: gridPages.value, groups: groupView.value ? groupBlocks.value : null, grouped: groupView.value,
-}), () => {
-  recordResearchEvent('result_state', 'results', {
-    surface: 'result_grid', model_id: activeModelId.value, collection: collection.value,
-    ids: groupView.value ? groupBlocks.value.flatMap(block => block.segments.flatMap(segment => segment.ids)) : [...shownIds.value],
-    pages: gridPages.value, groups: groupView.value ? groupBlocks.value : null, grouped: groupView.value,
-  })
+
+// What the grid shows, in display order; logged whenever it changes
+const shownState = computed(() => ({
+  surface: 'result_grid', model_id: activeModelId.value, collection: collection.value,
+  ids: groupView.value ? groupBlocks.value.flatMap(block => block.segments.flatMap(segment => segment.ids)) : shownIds.value,
+  pages: gridPages.value, groups: groupView.value ? groupBlocks.value : null, grouped: groupView.value,
+}))
+watch(() => JSON.stringify(shownState.value), () => {
+  recordResearchEvent('result_state', 'results', shownState.value)
 }, { immediate: true, flush: 'post' })
 </script>
 

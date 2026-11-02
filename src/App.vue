@@ -31,5 +31,4 @@ async function fetchInfo() {
     console.error('Failed to initialise session:', err)
   }
 }
-
 </script>

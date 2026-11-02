@@ -440,7 +440,8 @@ function onValueFilterChange(f: FilterInfo) {
   recordResearchEvent('filter_change', 'filter', {
     model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
     filter_id: f.id, filter: f.name, values: local.valueFilters[f.id] ?? [],
-  })}
+  })
+}
 
 /* ---------- parsing ---------- */
 
@@ -468,10 +469,19 @@ function parseRangeInput(f: FilterInfo, raw: string): number | null {
 
 /* ---------- range leaf building ---------- */
 
-// Capture at the input action. A delayed callback could outlive the dialog
-// or model and lose the edit or attribute it to a different tab.
+// Debounces buildRangeLeaf per filter so rapid keystrokes don't trigger repeated rebuilds
+const rangeTimers = new Map<number, number>()
 function onRangeInput(f: FilterInfo) {
-  buildRangeLeaf(f)
+  // Logged per input, not debounced, so no edit is lost
+  recordResearchEvent('filter_change', 'filter', {
+    model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
+    filter_id: f.id, filter: f.name, ...local.rangeInputs[f.id],
+  })
+  const id = f.id
+  const old = rangeTimers.get(id)
+  if (old) window.clearTimeout(old)
+  const t = window.setTimeout(() => buildRangeLeaf(f), 180)
+  rangeTimers.set(id, t)
 }
 
 // Translates the current op + input values into a FilterLeaf and stores it; 
@@ -479,10 +489,6 @@ function onRangeInput(f: FilterInfo) {
 function buildRangeLeaf(f: FilterInfo) {
   const st = local.rangeInputs[f.id]
   if (!st) return
-  recordResearchEvent('filter_change', 'filter', {
-    model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
-    filter_id: f.id, filter: f.name, ...st,
-  })
 
   const op = st.op
   const aRaw = (st.a ?? '').trim()
@@ -525,7 +531,6 @@ function buildRangeLeaf(f: FilterInfo) {
     upper,
     false
   )
-
 }
 
 // Combines all selected value filters and range leaves into a single AND group for the API; 

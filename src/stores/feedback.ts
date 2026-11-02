@@ -1,6 +1,6 @@
-import { resultIds as flattenResults, type ResultPage } from '@/types/results'
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { resultIds as flattenResults, type ResultPage } from '@/types/results'
 import { reactive } from "vue"
 import { RFSession } from "@/types/feedback";
 import { defineStore } from "pinia";

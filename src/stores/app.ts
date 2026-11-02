@@ -25,8 +25,7 @@ export const useAppStore = defineStore('app', () => {
   // Submit buttons are only shown when switched on in settings
   // and there's an evaluation to submit to
   const submitButtonsOn = ref(true)
-  const localSubmission = computed(() => evaluations.length === 0)
-  const submitEnabled = computed(() => submitButtonsOn.value && (localSubmission.value || selectedEvaluation.value.id !== ''))
+  const submitEnabled = computed(() => submitButtonsOn.value && selectedEvaluation.value.id !== '')
 
   // global UI settings
   const themeId = ref<ThemeId>('graphiteDark')
@@ -37,7 +36,6 @@ export const useAppStore = defineStore('app', () => {
     selectedEvaluation,
     submitButtonsOn,
     submitEnabled,
-    localSubmission,
     session,
     collections,
     success,

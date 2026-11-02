@@ -28,7 +28,7 @@
         <v-tabs v-model="tab" density="comfortable">
           <v-tab value="general">General</v-tab>
           <v-tab value="model">Model</v-tab>
-          <v-tab value="competition">Competition</v-tab>
+          <v-tab v-if="appStore.evaluations.length > 0" value="competition">Competition</v-tab>
         </v-tabs>
 
         <v-divider class="my-3" />
@@ -122,11 +122,9 @@
           </v-window-item>
 
           <!-- Competition -->
-          <v-window-item value="competition">
-            <div v-if="!appStore.localSubmission" class="text-subtitle-2 font-weight-bold mb-2">Active Evaluation</div>
-            <p v-else class="mb-3">Answers are recorded locally. No evaluation verdict is available.</p>
+          <v-window-item v-if="appStore.evaluations.length > 0" value="competition">
+            <div class="text-subtitle-2 font-weight-bold mb-2">Active Evaluation</div>
             <v-select
-             v-if="!appStore.localSubmission"
              :data-eid="'select_active_evaluation_dropdown_' + activeModel!.id"
              v-model="appStore.selectedEvaluation"
              :items="appStore.evaluations"
@@ -167,7 +165,7 @@
                variant="flat"
                @click="submitTextAnswerVBS"
               >
-                {{ appStore.localSubmission ? 'Record answer' : 'Submit answer' }}
+                Submit answer
               </v-btn>
             </div>
           </v-window-item>
