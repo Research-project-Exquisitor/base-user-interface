@@ -19,6 +19,7 @@
          data-eid="adv_search_query_textfield"
          v-model="local.queryText"
          label="Query"
+         @input="recordTextInput('advanced_search', $event, { model_id: activeModelId, collection: modelStore.getModelCollection(activeModelId) })"
          variant="outlined"
          density="comfortable"
         />
@@ -312,7 +313,7 @@ import { useAdvancedSearchStore } from '@/stores/advancedSearch'
 import { useFilterStore } from '@/stores/filter'
 import { useModelStore } from '@/stores/model'
 import { useAppStore } from '@/stores/app'
-import { recordResearchEvent } from '@/services/researchLog'
+import { recordResearchEvent, recordTextInput } from '@/services/researchLog'
 import type { AdvancedSearchPayload } from '@/types/chat'
 import type {
   ActiveFiltersDB,

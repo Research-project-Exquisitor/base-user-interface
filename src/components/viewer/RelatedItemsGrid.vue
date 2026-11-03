@@ -67,6 +67,7 @@
           <ItemTile
            :data-eid="eid(`itemtile_${id}`)"
            :item-id="id"
+           surface="related_items"
            :request-id="requestId"
            :model-id="modelId"
            :item="itemFor(id)"
@@ -188,6 +189,7 @@
                     <ItemTile
                      :data-eid="eid(`dialog_itemtile_${id}`)"
                      :item-id="id"
+                     surface="related_dialog"
                      :request-id="parentRequestId"
                      :model-id="modelId"
                      :item="itemFor(id)"
