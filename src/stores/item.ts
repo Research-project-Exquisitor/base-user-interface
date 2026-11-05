@@ -163,7 +163,7 @@ export const useItemStore = defineStore('item', () => {
   
   // Labels the user sets; links to the search that showed the item, else to the opened item
   function logLabel(action: 'add' | 'remove', itemId: number, modelId: number, collection: string, ilset: ILSets, requestId?: string) {
-    if (![ILSets.Positives, ILSets.Negatives, ILSets.Excluded].includes(ilset)) return
+    if (![ILSets.Positives, ILSets.Negatives, ILSets.Excluded, ILSets.History].includes(ilset)) return
     requestId ??= resultRequestId(modelStore.getModel(modelId).grid[0]?.pages ?? [], itemId) ?? selectedRequestIds.get(modelId)
     recordResearchEvent('relevance_label', 'result', { item_id: itemId, model_id: modelId, collection, action, label: ILSets[ilset] }, requestId)
   }

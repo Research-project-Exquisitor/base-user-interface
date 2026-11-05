@@ -11,6 +11,7 @@ const root = path.resolve(import.meta.dirname, '..')
 const components = {
   Filters: 'search/SearchDialog.vue', Temporal: 'search/TempSearchDialog.vue',
   Video: 'viewer/MediaViewer.vue', Related: 'viewer/RelatedItemsGrid.vue',
+  Info: 'viewer/MediaMetadataPopover.vue',
 }
 const fixtureCode = `
 import { reactive } from 'vue'
@@ -244,6 +245,42 @@ test('related relevance and full-dialog clicks distinguish ranked results from n
  assert.equal(ranked.request_id,'in-video-search');assert.equal(ranked.data.relationship,'search_result')
  assert.equal(related.request_id,'parent-search');assert.equal(related.data.relationship,'related_to_selected')
  assert.deepEqual(selected,[[12,'in-video-search'],[10,'parent-search']])
+ unmount()
+})
+
+test('closing the viewer logs segment_close with the item, video and position',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Video)
+ const player=markRaw({currentTime:2.5,src:'',load(){},pause(){},play:async()=>{},removeAttribute(){}})
+ s.videoPlayer.value=player;s.syncVideo()
+ s.closeViewer()
+ const close=emitted('display_change').find(e=>e.data.change==='segment_close')
+ assert.ok(close,'segment_close logged')
+ assert.equal(close.target,'video');assert.equal(close.request_id,'search-original')
+ assert.equal(close.data.item_id,10);assert.equal(close.data.video_id,'video-a');assert.equal(close.data.position_ms,2500)
+ assert.equal(close.data.reason,'close_button')
+ unmount()
+ assert.equal(emitted('display_change').filter(e=>e.data.change==='segment_close').length,1,'the unmount after a close logs nothing more')
+})
+
+test('a viewer unmounted without its close button (model tab switch) still logs segment_close',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Video)
+ s.videoPlayer.value=markRaw({currentTime:1.25,src:'',load(){},pause(){},play:async()=>{},removeAttribute(){}});s.syncVideo()
+ unmount()
+ const closes=emitted('display_change').filter(e=>e.data.change==='segment_close')
+ assert.equal(closes.length,1)
+ assert.equal(closes[0].data.reason,'unmount');assert.equal(closes[0].data.position_ms,1250)
+})
+
+test('the video info popover logs open and close',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Info,{modelId:0,item:{id:10,metadata:{}},group:null,isMainKey:()=>true,isGroupKey:()=>false})
+ s.open.value=true;await nextTick()
+ s.open.value=false;await nextTick()
+ const info=emitted('display_change').filter(e=>e.data.surface==='video_info')
+ assert.deepEqual(info.map(e=>e.data.change),['open','close'])
+ assert.equal(info[0].data.item_id,10);assert.equal(info[0].target,'video')
  unmount()
 })
 
