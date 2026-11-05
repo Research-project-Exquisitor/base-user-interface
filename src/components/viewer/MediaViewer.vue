@@ -85,7 +85,7 @@
          @play="recordPlayback('play', false, $event)"
          @pause="recordPlayback('pause', false, $event)"
          @ended="recordPlayback('ended', false, $event)"
-         @seeked="recordPlayback('seek', true, $event)"
+         @seeking="recordPlayback('seek', true, $event)"
          class="viewer-video"
         >
           Your browser does not support the video tag.
@@ -193,7 +193,7 @@
 
 <script setup lang="ts">
 import { recordResearchEvent, recordTextInput } from "@/services/researchLog"
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import AlbumViewer from './AlbumViewer.vue'
 import AudioPlayer from './AudioPlayer.vue'
 import RelatedItemsGrid from './RelatedItemsGrid.vue'
@@ -485,7 +485,22 @@ onUnmounted(() => {
 
 const emit = defineEmits<{ (e: 'closeMediaViewer'): void }>()
 
+// The viewer closes through its close button, or unmounts when the model tab
+// changes; log whichever comes first, once.
+let closeLogged = false
+function logClose(reason: 'close_button' | 'unmount') {
+  if (closeLogged || !selectedItem.value) return
+  closeLogged = true
+  recordResearchEvent('display_change', 'video', {
+    change: 'segment_close', reason, item_id: selectedItem.value.id, video_id: videoId.value,
+    model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
+    position_ms: videoPlayer.value ? Math.round(videoPlayer.value.currentTime * 1000) : null,
+  }, itemStore.selectedRequestIds.get(activeModelId.value))
+}
+onBeforeUnmount(() => logClose('unmount'))
+
 function closeViewer() {
+  logClose('close_button')
   teardownVideo()
   emit('closeMediaViewer')
 }
@@ -511,6 +526,9 @@ async function submitCurrent() {
   }, { itemId: selectedItem.value.id, requestId: itemStore.selectedRequestIds.get(activeModelId.value), surface: 'media_viewer' })
   useSubmissionStore().show(result, `Video ${name}, ${(start / 1000).toFixed(1)}–${(end / 1000).toFixed(1)} s`)
 }
+// Seeks are logged on `seeking`, when currentTime still holds the requested
+// position. On `seeked` a looping shot may already have jumped back to its
+// start, which lost the user's target and logged it after the loop's jump.
 function recordPlayback(action: string, seek: boolean, event: Event) {
   if (!playbackContext || !videoPlayer.value || event.target !== videoPlayer.value) return
   const { requestId, ...context } = playbackContext

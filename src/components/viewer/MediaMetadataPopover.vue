@@ -204,6 +204,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type MediaItem from '@/types/mediaitem'
+import { recordResearchEvent } from '@/services/researchLog'
 
 type AnyGroup = {
   metadata?: Record<string, any>
@@ -227,6 +228,14 @@ function eid(part: string) {
 
 const open = ref(false)
 const expandedPanels = ref<number[]>([])
+
+// logging open/close
+watch(open, (isOpen) => {
+  recordResearchEvent('display_change', 'video', {
+    surface: 'video_info', change: isOpen ? 'open' : 'close',
+    item_id: props.item?.id ?? null, model_id: Number(props.modelId),
+  })
+})
 
 const hasItemMeta = computed(() => !!props.item && !!props.item.metadata && Object.keys(props.item.metadata).length > 0)
 const hasVideoMeta = computed(() => !!props.group?.metadata && Object.keys(props.group.metadata).some(k => props.isGroupKey(k)))
