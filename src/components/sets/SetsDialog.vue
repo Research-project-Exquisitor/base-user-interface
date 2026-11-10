@@ -75,7 +75,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
+import { recordResearchEvent } from '@/services/researchLog'
 import ItemTile from '@/components/items/ItemTile.vue'
 import { useItemStore } from '@/stores/item'
 import { ILSets } from '@/types/mediaitem'
@@ -128,6 +129,15 @@ const title = computed(() => {
 })
 
 const items = computed(() => itemStore.getSetItems(props.modelId, props.set))
+
+// Opening a set shows its items (R8); logged with the items in display order
+watch(() => props.modelValue, (open) => {
+  recordResearchEvent('display_change', 'session', {
+    surface: 'sets_dialog', set: ILSets[props.set], change: open ? 'open' : 'close',
+    model_id: props.modelId, collection: modelStore.getModelCollection(props.modelId),
+    ids: open ? items.value.map(item => item.id) : undefined,
+  })
+})
 
 
 function onAdd(payload: { itemId: number; set: ILSets }) {

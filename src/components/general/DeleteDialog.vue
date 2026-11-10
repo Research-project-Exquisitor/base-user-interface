@@ -42,7 +42,7 @@
 
 <script setup lang="ts">
 import { recordResearchEvent } from "@/services/researchLog"
-import { ref } from 'vue';
+import { onBeforeUnmount, ref } from 'vue';
 
 interface Props {
   id: number,
@@ -55,9 +55,14 @@ const showDialog = ref(false)
 
 const emit = defineEmits(['submit'])
 
-watch(showDialog, (open) => {
-  recordResearchEvent('display_change', 'session', { surface: 'delete_dialog', model_id: props.id, title: props.title, change: open ? 'open' : 'close' })
-})
+let openLogged = false
+function logChange(open: boolean, reason?: 'unmount') {
+  openLogged = open
+  recordResearchEvent('display_change', 'session', { surface: 'delete_dialog', model_id: props.id, title: props.title, change: open ? 'open' : 'close', reason })
+}
+watch(showDialog, (open) => logChange(open))
+// "Yes" removes the tab, so the dialog unmounts before the watcher sees it close
+onBeforeUnmount(() => { if (openLogged) logChange(false, 'unmount') })
 
 </script>
 

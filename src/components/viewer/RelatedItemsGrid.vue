@@ -39,6 +39,7 @@
       <v-slider
        v-model="summaryCount"
        :data-eid="eid('slider_summary')"
+       @update:model-value="userSet.add('summary_count')"
        :min="20"
        :max="summaryMax"
        :step="5"
@@ -141,6 +142,7 @@
               <v-slider
                v-model="dialogCount"
                :data-eid="eid('dialog_slider')"
+               @update:model-value="userSet.add('dialog_count')"
                :min="Math.min(100, allIds.length || 100)"
                :max="Math.max(100, allIds.length || 100)"
                :step="10"
@@ -153,6 +155,7 @@
               <v-checkbox
                v-model="dialogAll"
                :data-eid="eid('dialog_all_toggle')"
+               @update:model-value="userSet.add('dialog_all')"
                hide-details
                density="compact"
                label="All"
@@ -418,6 +421,24 @@ function showRow(ids: number[]) {
   recordResearchEvent('result_state', 'results', { surface: 'related_dialog', relationship: 'related_to_selected', ids, parent_item_id: props.mediaItem.id, collection: collection.value, model_id: props.modelId }, props.parentRequestId)
   ensureLoaded(ids)
 }
+// How many related shots are shown (R11). The grid also adjusts these itself when
+// the number of related shots changes, so each change says whether the user made it.
+const userSet = new Set<string>()
+function logSetting(setting: string, value: unknown, previous: unknown) {
+  recordResearchEvent('display_change', 'video', {
+    change: 'setting', setting, value, previous, cause: userSet.delete(setting) ? 'user' : 'auto',
+    parent_item_id: props.mediaItem.id, collection: collection.value, model_id: props.modelId,
+  }, props.requestId)
+}
+watch(summaryCount, (value, previous) => logSetting('summary_count', value, previous))
+watch(dialogCount, (value, previous) => logSetting('dialog_count', value, previous))
+watch(dialogAll, (value, previous) => logSetting('dialog_all', value, previous))
+watch(dialogOpen, (open) => {
+  recordResearchEvent('display_change', 'video', {
+    surface: 'related_dialog', change: open ? 'open' : 'close', parent_item_id: props.mediaItem.id, collection: collection.value, model_id: props.modelId,
+  }, props.requestId)
+})
+
 watch(() => JSON.stringify([displayedIds.value, props.requestId, collection.value]), () => {
   recordResearchEvent('result_state', 'results', { surface: 'related_items', relationship: props.searchResults ? 'search_result' : 'related_to_selected', ids: displayedIds.value, parent_item_id: props.mediaItem.id, collection: collection.value, model_id: props.modelId }, props.requestId)
 }, { immediate: true, flush: 'post' })
