@@ -289,6 +289,22 @@ test('loops still pending are logged with their shot when the viewer closes',asy
  unmount()
 })
 
+test('the loop switch logs its new value, after the loops it ends',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Video)
+ const player=markRaw({currentTime:0,src:'',load(){},pause(){},play:async()=>{},removeAttribute(){}})
+ s.videoPlayer.value=player;s.syncVideo()
+ player.currentTime=5;s.onTimeUpdate();s.recordPlayback('seek',true,{target:player})
+ s.loopSegment.value=false;await nextTick()
+ const toggle=emitted('display_change').find(e=>e.data.setting==='loop_segment')
+ assert.ok(toggle,'loop switch logged')
+ assert.equal(toggle.data.change,'setting');assert.equal(toggle.data.value,false);assert.equal(toggle.data.previous,true)
+ assert.equal(toggle.data.item_id,10);assert.equal(toggle.target,'video');assert.equal(toggle.request_id,'search-original')
+ const loop=emitted('video_seek').find(e=>e.data.cause==='segment_loop')
+ assert.equal(loop.data.loops,1);assert.ok(loop.sequence<toggle.sequence)
+ unmount()
+})
+
 test('a viewer unmounted without its close button (model tab switch) still logs segment_close',async()=>{
  reset()
  const {state:s,unmount}=await mount(runtime.Video)

@@ -578,6 +578,17 @@ function recordPlayback(action: string, seek: boolean, event: Event) {
   }, requestId)
 }
 
+// The loop switch decides whether the open shot repeats (R11)
+watch(loopSegment, (value, previous) => {
+  if (!selectedItem.value) return
+  flushLoops()
+  recordResearchEvent('display_change', 'video', {
+    change: 'setting', setting: 'loop_segment', value, previous, item_id: selectedItem.value.id, video_id: videoId.value,
+    model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
+    position_ms: videoPlayer.value ? Math.round(videoPlayer.value.currentTime * 1000) : null,
+  }, itemStore.selectedRequestIds.get(activeModelId.value))
+})
+
 watch(() => [selectedItem.value?.id, selectedGroup.value?.src, segment.value.startMs], () => {
   if (!selectedItem.value || !isGroupVideo.value) return
   recordResearchEvent('display_change', 'video', {

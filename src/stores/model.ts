@@ -123,7 +123,17 @@ export const useModelStore = defineStore('model', () => {
   
   function updateName(model: Model, newName: string) {
     let indx = models.findIndex(e => e.id === model.id && e.name === model.name)
+    const previous = models[indx].name
     models[indx].name = newName
+    if (newName !== previous) logModelSetting(models[indx], 'name', newName, previous)
+  }
+
+  // A model's settings change what its searches return and show (R11)
+  function logModelSetting(model: Model, setting: string, value: unknown, previous: unknown) {
+    recordResearchEvent('display_change', 'session', {
+      change: 'setting', setting: setting.replace(/[A-Z]/g, c => '_' + c.toLowerCase()), value, previous,
+      model_id: model.id, collection: model.collection,
+    })
   }
   
   async function getSuggestions(req: ExqRFRequest, gridIdx: number, itemIdx?: number) {
@@ -150,7 +160,12 @@ export const useModelStore = defineStore('model', () => {
   function updateModelSettings(modelId: number, partial: Partial<Settings>) {
     const indx = models.findIndex(e => e.id === modelId)
     if (indx < 0) return
-    models[indx].settings = { ...models[indx].settings, ...partial }
+    const previous = models[indx].settings
+    models[indx].settings = { ...previous, ...partial }
+    for (const [setting, value] of Object.entries(partial)) {
+      const before = previous[setting as keyof Settings]
+      if (value !== before) logModelSetting(models[indx], setting, value, before)
+    }
 
     // Keep grid group size in sync
     if (partial.itemsToShow !== undefined && models[indx].grid?.length) {
