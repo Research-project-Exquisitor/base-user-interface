@@ -221,7 +221,7 @@
 
 <script setup lang="ts">
 import { resultIds, resultRequestId, type ResultPage } from "@/types/results"
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import ItemTile from '@/components/items/ItemTile.vue'
 import { useModelStore } from '@/stores/model'
 import { useItemStore } from '@/stores/item'
@@ -234,7 +234,7 @@ import type MediaItem from '@/types/mediaitem'
 import type { GroupMetadata } from '@/types/mediaitem'
 import type { ExqTemporalChain } from '@/types/exq'
 import { useAppStore } from '@/stores/app'
-import { recordResearchEvent } from '@/services/researchLog'
+import { recordResearchEvent, frameStateRecorder } from '@/services/researchLog'
 
 const props = defineProps<{
   modelId: number,
@@ -544,15 +544,20 @@ function onRemove(payload: { itemId: number; set: ILSets }) {
   itemStore.removeItemFromSet(payload.itemId, activeModelId.value, payload.set)
 }
 
-// What the grid shows, in display order; logged whenever it changes
+// What the grid shows, in display order; logged once per drawn frame (see
+// frameStateRecorder). A block's label isn't logged: it is the video's name,
+// which can be looked up from the block's key, and it resolves after the results
+// (placeholder id, then the name), which would make a label change look like a new state.
 const shownState = computed(() => ({
   surface: 'result_grid', model_id: activeModelId.value, collection: collection.value,
   ids: groupView.value ? groupBlocks.value.flatMap(block => block.segments.flatMap(segment => segment.ids)) : shownIds.value,
-  pages: gridPages.value, groups: groupView.value ? groupBlocks.value : null, grouped: groupView.value,
+  pages: gridPages.value, groups: groupView.value ? groupBlocks.value.map(({ label, ...block }) => block) : null, grouped: groupView.value,
 }))
-watch(() => JSON.stringify(shownState.value), () => {
-  recordResearchEvent('result_state', 'results', shownState.value)
+const resultState = frameStateRecorder('result_state', 'results')
+watch(() => JSON.stringify(shownState.value), (key) => {
+  resultState.update(key, shownState.value)
 }, { immediate: true, flush: 'post' })
+onBeforeUnmount(resultState.flush)
 </script>
 
 <style scoped>
