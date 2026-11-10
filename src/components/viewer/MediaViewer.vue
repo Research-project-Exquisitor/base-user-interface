@@ -288,6 +288,7 @@ const segment = computed(() => {
 })
 
 function teardownVideo(hard = false) {
+  flushLoops()
   playbackContext = undefined
   const vid = videoPlayer.value
   if (!vid) return
@@ -309,6 +310,11 @@ const startSec = computed(() => (segment.value.hasSegment ? segment.value.startM
 
 let playbackContext: { item_id: number; video_id: string; model_id: number; collection: string; requestId?: string; start_ms: number; end_ms: number } | undefined
 let pendingSeek: { seconds: number; cause: string } | undefined
+// Why the next `play` happens when the code, not the user, starts playback:
+// autoplay of a newly loaded video, or a shot change within the same video.
+let pendingPlay: 'autoplay' | 'segment_navigation' | undefined
+// Loops of the open shot not logged yet; see flushLoops
+let loops: { count: number; firstMs: number; lastMs: number } | undefined
 function seekVideo(seconds: number, cause: string) {
   if (!videoPlayer.value) return
   pendingSeek = { seconds, cause }
@@ -326,6 +332,8 @@ function syncVideo() {
   const vid = videoPlayer.value
   const src = selectedGroup.value?.src
   if (!vid || !src || !isGroupVideo.value) return
+  // Loops so far belong to the shot that was open until now
+  flushLoops()
   refreshPlaybackContext()
 
   if (lastVideoSrc.value !== src) {
@@ -334,11 +342,14 @@ function syncVideo() {
     lastVideoSrc.value = src
     pendingSeek = startSec.value > 0 ? { seconds: startSec.value, cause: 'segment_navigation' } : undefined
     vid.src = startSec.value > 0 ? `${src}#t=${startSec.value}` : src
+    // The <video> has autoplay; muted, so browsers allow it
+    pendingPlay = 'autoplay'
     vid.load()
   } else if (segment.value.hasSegment && Math.abs(vid.currentTime - startSec.value) > 0.25) {
     // Same video but another shot, so just seek
     seekVideo(startSec.value, 'segment_navigation')
-    void vid.play().catch(() => {})
+    if (vid.paused) pendingPlay = 'segment_navigation'
+    void vid.play().catch(() => { pendingPlay = undefined })
   }
 }
 
@@ -491,6 +502,7 @@ let closeLogged = false
 function logClose(reason: 'close_button' | 'unmount') {
   if (closeLogged || !selectedItem.value) return
   closeLogged = true
+  flushLoops()
   recordResearchEvent('display_change', 'video', {
     change: 'segment_close', reason, item_id: selectedItem.value.id, video_id: videoId.value,
     model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
@@ -526,17 +538,44 @@ async function submitCurrent() {
   }, { itemId: selectedItem.value.id, requestId: itemStore.selectedRequestIds.get(activeModelId.value), surface: 'media_viewer' })
   useSubmissionStore().show(result, `Video ${name}, ${(start / 1000).toFixed(1)}–${(end / 1000).toFixed(1)} s`)
 }
+// A looping shot jumps back to its start every few seconds (about 7,000 times an
+// hour for a short shot), so loops are counted, not logged one by one. The count
+// is logged as one segment_loop seek before the next video event, a shot change
+// or the close; with the shot's bounds, replay can rebuild every loop from it.
+function flushLoops() {
+  if (!loops || !playbackContext) return
+  const { requestId, ...context } = playbackContext
+  recordResearchEvent('video_seek', 'video', {
+    ...context, action: 'seek', cause: 'segment_loop', position_ms: context.start_ms, looping: loopSegment.value,
+    loops: loops.count, first_loop_ms: loops.firstMs, last_loop_ms: loops.lastMs,
+  }, requestId)
+  loops = undefined
+}
+
 // Seeks are logged on `seeking`, when currentTime still holds the requested
 // position. On `seeked` a looping shot may already have jumped back to its
 // start, which lost the user's target and logged it after the loop's jump.
 function recordPlayback(action: string, seek: boolean, event: Event) {
   if (!playbackContext || !videoPlayer.value || event.target !== videoPlayer.value) return
+  const seekCause = seek && pendingSeek && Math.abs(videoPlayer.value.currentTime - pendingSeek.seconds) < 0.5 ? pendingSeek.cause : 'user'
+  if (seek) pendingSeek = undefined
+  if (seek && seekCause === 'segment_loop') {
+    const now = Date.now()
+    loops = { count: (loops?.count ?? 0) + 1, firstMs: loops?.firstMs ?? now, lastMs: now }
+    return
+  }
+  flushLoops()
+  let cause = 'playback'
+  if (seek) cause = seekCause
+  else if (action === 'play') {
+    cause = pendingPlay ?? 'user'
+    pendingPlay = undefined
+  }
   const { requestId, ...context } = playbackContext
   recordResearchEvent(seek ? 'video_seek' : 'video_play', 'video', {
-    ...context, action, cause: seek ? (pendingSeek && Math.abs(videoPlayer.value.currentTime - pendingSeek.seconds) < 0.5 ? pendingSeek.cause : 'user') : 'playback',
+    ...context, action, cause,
     position_ms: Math.round(videoPlayer.value.currentTime * 1000), looping: loopSegment.value,
   }, requestId)
-  if (seek) pendingSeek = undefined
 }
 
 watch(() => [selectedItem.value?.id, selectedGroup.value?.src, segment.value.startMs], () => {

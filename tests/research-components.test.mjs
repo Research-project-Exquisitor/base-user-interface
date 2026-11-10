@@ -11,7 +11,7 @@ const root = path.resolve(import.meta.dirname, '..')
 const components = {
   Filters: 'search/SearchDialog.vue', Temporal: 'search/TempSearchDialog.vue',
   Video: 'viewer/MediaViewer.vue', Related: 'viewer/RelatedItemsGrid.vue',
-  Info: 'viewer/MediaMetadataPopover.vue',
+  Info: 'viewer/MediaMetadataPopover.vue', Tile: 'items/ItemTile.vue',
 }
 const fixtureCode = `
 import { reactive } from 'vue'
@@ -25,6 +25,8 @@ export function reset() {
    getSelectedItem(){return this.selected}, getSelectedGroup(){return this.group},
    getSetItems:()=>[], fetchMediaItems:async()=>[],
    setSelectedItem:async()=>{}, addItemToSet:()=>{}, removeItemFromSet:()=>{},
+   isItemInPos:()=>false, isItemInNeg:()=>false, isItemInSubmitted:()=>false, isItemInHistory:()=>false,
+   fetchItemInfo:async()=>({}),
  })
  const filters = reactive({ filtersLoaded:true, filtersInfo:new Map([[0,[]]]),
    loadFilters:async()=>{}, isMain:()=>true, isGroup:()=>false, toAppliedFilters:()=>({}),
@@ -63,7 +65,7 @@ export {createRenderer,h,Suspense,nextTick,markRaw} from 'vue';`, resolveDir:roo
     // Match the project's Vue auto-imports, while executing real setup and watchers.
     const source=descriptor.scriptSetup.content
     const imported=[...source.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]vue['"]/g)].flatMap(m=>m[1].split(',').map(x=>x.trim()))
-    const extra=['computed','reactive','ref','watch','onMounted','onUnmounted','onBeforeUnmount','nextTick'].filter(n=>!imported.includes(n))
+    const extra=['computed','reactive','ref','watch','onMounted','onUnmounted','onBeforeUnmount','nextTick','watchEffect'].filter(n=>!imported.includes(n))
     const modified=originalSource.replace(source,`import {${extra.join(',')}} from 'vue'\n`+source)
     const reparsed=parse(modified,{filename:a.path}).descriptor
     return {contents:compileScript(reparsed,{id:a.path}).content,loader:'ts',resolveDir:path.dirname(a.path)}
@@ -158,7 +160,7 @@ test('related results log displayed IDs and clicks even when item data is cached
  unmount()
 })
 
-test('video events retain segment/request context and distinguish automatic and user seeking',async()=>{
+test('video events retain segment/request context and distinguish automatic and user seeking and playing',async()=>{
  reset()
  const {state:s,unmount}=await mount(runtime.Video)
  const player=markRaw({currentTime:0,src:'',load(){},pause(){},play:async()=>{},removeAttribute(){}})
@@ -170,10 +172,18 @@ test('video events retain segment/request context and distinguish automatic and 
  assert.deepEqual(emitted('video_seek').map(e=>e.data.cause),['segment_navigation','user'])
  assert.equal(emitted('video_play')[0].request_id,'search-original')
  s.recordPlayback('pause',false,{target:player});s.recordPlayback('ended',false,{target:player})
- assert.deepEqual(emitted('video_play').map(e=>e.data.action),['play','pause','ended'])
- player.currentTime=5;s.onTimeUpdate();s.recordPlayback('seek',true,{target:player})
- assert.equal(emitted('video_seek').at(-1).data.cause,'segment_loop')
- assert.equal(emitted('video_seek').at(-1).data.position_ms,1000)
+ s.recordPlayback('play',false,{target:player})
+ assert.deepEqual(emitted('video_play').map(e=>e.data.action),['play','pause','ended','play'])
+ // The new video's autoplay isn't a user's play; the later one is
+ assert.deepEqual(emitted('video_play').map(e=>e.data.cause),['autoplay','playback','playback','user'])
+ // Loops are counted, and the count is logged before the next video event
+ for(let i=0;i<3;i++){player.currentTime=5;s.onTimeUpdate();s.recordPlayback('seek',true,{target:player})}
+ assert.equal(emitted('video_seek').filter(e=>e.data.cause==='segment_loop').length,0)
+ s.recordPlayback('pause',false,{target:player})
+ const loop=emitted('video_seek').find(e=>e.data.cause==='segment_loop')
+ assert.equal(loop.data.loops,3);assert.equal(loop.data.position_ms,1000)
+ assert.ok(loop.data.first_loop_ms<=loop.data.last_loop_ms)
+ assert.ok(loop.sequence<emitted('video_play').at(-1).sequence)
  const old=player
  fixtures.item.selected={id:11,metadata:{'Video ID':'video-b','Start (ms)':0,'End (ms)':3000}}
  fixtures.item.group={src:'video-b.mp4',groupMediaType:runtime.MediaType.Video,itemsLoaded:true,items:[11]}
@@ -184,6 +194,8 @@ test('video events retain segment/request context and distinguish automatic and 
  const before=events.length
  s.recordPlayback('pause',false,{target:old})
  assert.equal(events.length,before,'old media element cannot log into new selection')
+ s.recordPlayback('play',false,{target:replacement})
+ assert.equal(emitted('video_play').at(-1).data.cause,'autoplay')
  replacement.currentTime=1.5;s.recordPlayback('seek',true,{target:replacement})
  const seek=emitted('video_seek').at(-1)
  assert.equal(seek.data.cause,'user');assert.equal(seek.data.item_id,11);assert.equal(seek.request_id,'search-new')
@@ -263,6 +275,20 @@ test('closing the viewer logs segment_close with the item, video and position',a
  assert.equal(emitted('display_change').filter(e=>e.data.change==='segment_close').length,1,'the unmount after a close logs nothing more')
 })
 
+test('loops still pending are logged with their shot when the viewer closes',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Video)
+ const player=markRaw({currentTime:0,src:'',load(){},pause(){},play:async()=>{},removeAttribute(){}})
+ s.videoPlayer.value=player;s.syncVideo()
+ for(let i=0;i<2;i++){player.currentTime=5;s.onTimeUpdate();s.recordPlayback('seek',true,{target:player})}
+ s.closeViewer()
+ const loop=emitted('video_seek').find(e=>e.data.cause==='segment_loop')
+ assert.equal(loop.data.loops,2);assert.equal(loop.data.item_id,10)
+ const close=emitted('display_change').find(e=>e.data.change==='segment_close')
+ assert.ok(loop.sequence<close.sequence)
+ unmount()
+})
+
 test('a viewer unmounted without its close button (model tab switch) still logs segment_close',async()=>{
  reset()
  const {state:s,unmount}=await mount(runtime.Video)
@@ -281,6 +307,25 @@ test('the video info popover logs open and close',async()=>{
  const info=emitted('display_change').filter(e=>e.data.surface==='video_info')
  assert.deepEqual(info.map(e=>e.data.change),['open','close'])
  assert.equal(info[0].data.item_id,10);assert.equal(info[0].target,'video')
+ unmount()
+})
+
+test('a hover records whether the pointer moved, so tiles scrolled under a still pointer can be told apart',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Tile,{itemId:10,modelId:0,requestId:'search-original',surface:'result_grid',item:null,groupInfo:null,enableHoverPreview:false})
+ const move={currentTarget:null,clientX:0}
+ // Pointer moved onto the tile: the browser sends mousemove with mouseenter
+ s.onEnter();s.onMove(move);s.onMove(move);s.onLeave()
+ // Tile scrolled under a still pointer: enter and leave, no mousemove
+ s.onEnter();s.onLeave()
+ const [moved,scrolled]=emitted('hover')
+ assert.equal(moved.data.pointer_moves,2);assert.equal(typeof moved.data.first_move_ms,'number')
+ assert.ok(moved.data.first_move_ms>=moved.data.start_ms&&moved.data.first_move_ms<=moved.data.end_ms)
+ assert.equal(scrolled.data.pointer_moves,0);assert.equal(scrolled.data.first_move_ms,null)
+ assert.equal(moved.request_id,'search-original')
+ // A move outside a hover isn't counted towards the next one
+ s.onMove(move);s.onEnter();s.onLeave()
+ assert.equal(emitted('hover')[2].data.pointer_moves,0)
  unmount()
 })
 

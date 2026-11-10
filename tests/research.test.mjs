@@ -83,6 +83,34 @@ test('events snapshot mutable data and sequence resets with session', () => {
   assert.equal(client.recordResearchEvent('display_change', 'session', {}).sequence, 0)
 })
 
+test('display states are logged once per drawn frame: steps replaced before a frame and unchanged states are not', async () => {
+  client.setSessionId('frame-session')
+  requests.length = 0
+  const logged = () => requests.filter(r => r.url.endsWith('/clientEventV2')).flatMap(r => r.body).filter(e => e.type === 'result_state')
+  const frame = () => new Promise(resolve => setTimeout(resolve, 40))
+  const state = client.frameStateRecorder('result_state', 'results')
+  // Group view switches on before the new results arrive, within one frame
+  state.update('old-grouped', { ids: [1, 2] })
+  state.update('new-grouped', { ids: [3, 4] })
+  assert.equal(logged().length, 0, 'nothing is logged before the frame')
+  await frame()
+  assert.deepEqual(logged().map(e => e.data.ids), [[3, 4]])
+  // A step that changes and changes back within a frame isn't a new state
+  state.update('other', { ids: [9] })
+  state.update('new-grouped', { ids: [3, 4] })
+  await frame()
+  assert.equal(logged().length, 1)
+  // States in different frames are each logged
+  state.update('more', { ids: [3, 4, 5] })
+  await frame()
+  assert.deepEqual(logged().map(e => e.data.ids), [[3, 4], [3, 4, 5]])
+  // flush logs a pending state right away, e.g. when the grid unmounts, and only once
+  state.update('next', { ids: [5] })
+  state.flush()
+  await frame()
+  assert.deepEqual(logged().map(e => e.data.ids), [[3, 4], [3, 4, 5], [5]])
+})
+
 test('result pages preserve old and load-more request provenance', () => {
   const pages = [{ requestId: 'first', ids: [1, 2] }, { requestId: 'more', ids: [3, 4] }]
   assert.deepEqual(client.resultIds(pages), [1, 2, 3, 4])
