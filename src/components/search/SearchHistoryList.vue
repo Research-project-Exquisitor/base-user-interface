@@ -12,11 +12,11 @@
          :data-eid="eid(`item_${item.id}`)"
          class="history-item pa-2"
          :class="{ 'history-item--active': item.id === currentQueryId }"
-         @click="$emit('show-results', item.id, item.resultPages)"
+         @click="logSelect(item, $event); $emit('show-results', item.id, item.resultPages)"
         >
           <div class="row-wrap" :class="{ 'row-wrap--active': item.id === currentQueryId }">
             <!-- top line -->
-            <div class="row-top" @click="$emit('show-results', item.id, item.resultPages)">
+            <div class="row-top" @click="logSelect(item, $event); $emit('show-results', item.id, item.resultPages)">
               <div class="row-time text-caption opacity-70" :data-eid="eid(`time_${item.id}`)">
                 {{ formatTime(item.timestamp) }}
               </div>
@@ -145,6 +145,7 @@
 <script setup lang="ts">
 import type { ResultPage } from "@/types/results"
 import { computed } from 'vue'
+import { recordResearchEvent } from '@/services/researchLog'
 import { useFilterStore } from '@/stores/filter'
 import { useModelStore } from '@/stores/model'
 import { useSearchIndexStore } from '@/stores/searchIndex'
@@ -168,6 +169,19 @@ const emit = defineEmits<{
 const filterStore = useFilterStore()
 const modelStore = useModelStore()
 const indexStore = useSearchIndexStore()
+
+// Re-showing a past search (Figure 1: Select History Tab). The row and its top
+// line both handle the click, so one click reaches here twice; log it once.
+let lastSelectClick: Event | undefined
+function logSelect(item: ChatQuery, event: Event) {
+  if (event === lastSelectClick) return
+  lastSelectClick = event
+  recordResearchEvent('display_change', 'search', {
+    change: 'history_select', query_id: item.id, search_type: item.searchType,
+    request_ids: item.resultPages.map(page => page.requestId), current: item.id === props.currentQueryId,
+    model_id: props.modelId, collection: modelStore.getModelCollection(props.modelId),
+  }, item.resultPages[0]?.requestId)
+}
 
 const collection = computed(() => modelStore.getModelCollection(props.modelId))
 onMounted(() => indexStore.load(collection.value))

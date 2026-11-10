@@ -12,6 +12,7 @@ const components = {
   Filters: 'search/SearchDialog.vue', Temporal: 'search/TempSearchDialog.vue',
   Video: 'viewer/MediaViewer.vue', Related: 'viewer/RelatedItemsGrid.vue',
   Info: 'viewer/MediaMetadataPopover.vue', Tile: 'items/ItemTile.vue',
+  Drawer: 'sets/SetsDrawer.vue', SetDialog: 'sets/SetsDialog.vue', History: 'search/SearchHistoryList.vue', Delete: 'general/DeleteDialog.vue',
 }
 const fixtureCode = `
 import { reactive } from 'vue'
@@ -50,7 +51,7 @@ const temp = await mkdtemp(path.join(tmpdir(),'research-components-'))
 const bundle=await build({
  stdin:{contents:Object.entries(components).map(([name,file])=>`export {default as ${name}} from './src/components/${file}'`).join('\n')+`
 export * from 'test-fixtures'; export * from './src/services/http'; export * from './src/types/mediaitem';
-export {createRenderer,h,Suspense,nextTick,markRaw} from 'vue';`, resolveDir:root},
+export {createRenderer,h,Suspense,nextTick,markRaw,reactive} from 'vue'; export {ILSets} from './src/types/mediaitem';`, resolveDir:root},
  bundle:true,write:false,format:'esm',platform:'node',alias:{'@':path.join(root,'src')},
  plugins:[{name:'component-fixtures',setup(b){
   b.onResolve({filter:/^test-fixtures$/},()=>({path:'fixtures',namespace:'fixture'}))
@@ -77,7 +78,7 @@ export {createRenderer,h,Suspense,nextTick,markRaw} from 'vue';`, resolveDir:roo
 await writeFile(path.join(temp,'components.mjs'),bundle.outputFiles[0].text)
 const runtime=await import(pathToFileURL(path.join(temp,'components.mjs')))
 await rm(temp,{recursive:true})
-const {createRenderer,h,Suspense,nextTick,markRaw,fixtures}=runtime
+const {createRenderer,h,Suspense,nextTick,markRaw,reactive,fixtures}=runtime
 const events=[]
 const allEvents=[]
 globalThis.window={setTimeout,clearTimeout}
@@ -289,6 +290,22 @@ test('loops still pending are logged with their shot when the viewer closes',asy
  unmount()
 })
 
+test('the loop switch logs its new value, after the loops it ends',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Video)
+ const player=markRaw({currentTime:0,src:'',load(){},pause(){},play:async()=>{},removeAttribute(){}})
+ s.videoPlayer.value=player;s.syncVideo()
+ player.currentTime=5;s.onTimeUpdate();s.recordPlayback('seek',true,{target:player})
+ s.loopSegment.value=false;await nextTick()
+ const toggle=emitted('display_change').find(e=>e.data.setting==='loop_segment')
+ assert.ok(toggle,'loop switch logged')
+ assert.equal(toggle.data.change,'setting');assert.equal(toggle.data.value,false);assert.equal(toggle.data.previous,true)
+ assert.equal(toggle.data.item_id,10);assert.equal(toggle.target,'video');assert.equal(toggle.request_id,'search-original')
+ const loop=emitted('video_seek').find(e=>e.data.cause==='segment_loop')
+ assert.equal(loop.data.loops,1);assert.ok(loop.sequence<toggle.sequence)
+ unmount()
+})
+
 test('a viewer unmounted without its close button (model tab switch) still logs segment_close',async()=>{
  reset()
  const {state:s,unmount}=await mount(runtime.Video)
@@ -326,6 +343,62 @@ test('a hover records whether the pointer moved, so tiles scrolled under a still
  // A move outside a hover isn't counted towards the next one
  s.onMove(move);s.onEnter();s.onLeave()
  assert.equal(emitted('hover')[2].data.pointer_moves,0)
+ unmount()
+})
+
+test('Sets drawers and dialogs log open and close with the set and its items',async()=>{
+ for (const [Component,surface] of [[runtime.Drawer,'sets_drawer'],[runtime.SetDialog,'sets_dialog']]) {
+  reset()
+  fixtures.item.getSetItems=()=>[{id:21},{id:22}]
+  const props=reactive({modelId:0,set:runtime.ILSets.Positives,modelValue:false})
+  const {unmount}=await mount(Component,props)
+  props.modelValue=true;await nextTick();await nextTick()
+  props.modelValue=false;await nextTick();await nextTick()
+  const changes=emitted('display_change').filter(e=>e.data.surface===surface)
+  assert.deepEqual(changes.map(e=>e.data.change),['open','close'],surface)
+  assert.equal(changes[0].data.set,'Positives');assert.deepEqual(changes[0].data.ids,[21,22]);assert.equal(changes[0].data.collection,'test')
+  unmount()
+ }
+})
+
+test('re-showing a past search logs one history_select per click, linked to its search',async()=>{
+ reset()
+ const item={id:'q1',searchType:'text',name:'dog',resultPages:[{requestId:'search-q1',ids:[1,2]},{requestId:'more-q1',ids:[3]}],timestamp:0}
+ const {state:s,unmount}=await mount(runtime.History,{modelId:0,items:[item],currentQueryId:'q2',temporalSelection:[],temporalMode:false})
+ const click={}
+ s.logSelect(item,click);s.logSelect(item,click) // the row and its top line both handle one click
+ s.logSelect(item,{})
+ const selects=emitted('display_change').filter(e=>e.data.change==='history_select')
+ assert.equal(selects.length,2)
+ assert.equal(selects[0].request_id,'search-q1');assert.deepEqual(selects[0].data.request_ids,['search-q1','more-q1'])
+ assert.equal(selects[0].data.query_id,'q1');assert.equal(selects[0].data.current,false);assert.equal(selects[0].target,'search')
+ unmount()
+})
+
+test('the Delete dialog logs its close when "Yes" removes the tab before the watcher runs',async()=>{
+ reset()
+ const yes=await mount(runtime.Delete,{id:1,title:'Delete tab',name:'Tab 2'})
+ yes.state.showDialog.value=true;await nextTick()
+ yes.state.showDialog.value=false;yes.unmount() // "Yes": closes and the tab, with the dialog, is removed at once
+ assert.deepEqual(emitted('display_change').map(e=>[e.data.change,e.data.reason]),[['open',undefined],['close','unmount']])
+ reset()
+ const no=await mount(runtime.Delete,{id:1,title:'Delete tab',name:'Tab 2'})
+ no.state.showDialog.value=true;await nextTick()
+ no.state.showDialog.value=false;await nextTick();no.unmount()
+ assert.deepEqual(emitted('display_change').map(e=>[e.data.change,e.data.reason]),[['open',undefined],['close',undefined]])
+})
+
+test('the related grid logs its dialog and density changes, by user or by the grid itself',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Related,{modelId:0,mediaItem:{id:10,metadata:{}},relatedItems:[11,12],requestId:'related-request'})
+ s.dialogOpen.value=true;await nextTick()
+ s.userSet.add('summary_count');s.summaryCount.value=40;await nextTick()
+ s.dialogCount.value=150;await nextTick()
+ s.dialogOpen.value=false;await nextTick()
+ const dialog=emitted('display_change').filter(e=>e.data.surface==='related_dialog')
+ assert.deepEqual(dialog.map(e=>e.data.change),['open','close']);assert.equal(dialog[0].request_id,'related-request')
+ const settings=emitted('display_change').filter(e=>e.data.change==='setting')
+ assert.deepEqual(settings.map(e=>[e.data.setting,e.data.value,e.data.previous,e.data.cause]),[['summary_count',40,20,'user'],['dialog_count',150,settings[1].data.previous,'auto']])
  unmount()
 })
 
