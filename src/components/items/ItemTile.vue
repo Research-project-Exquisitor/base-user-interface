@@ -408,7 +408,11 @@ function stopPreview() {
 
 // Hovering a tile is how results are inspected before a click. Logged raw when
 // the hover ends, without a minimum duration, so analysis decides what counts.
+// A tile that scrolls under a still pointer also gets mouseenter/mouseleave, but
+// no mousemove, so the pointer's moves are counted to tell the two apart.
 let hoverStartMs: number | undefined
+let pointerMoves = 0
+let firstMoveMs: number | null = null
 
 function recordHover() {
   if (hoverStartMs === undefined) return
@@ -420,6 +424,8 @@ function recordHover() {
     start_ms: hoverStartMs,
     end_ms: Date.now(),
     preview: canHoverPlay.value,
+    pointer_moves: pointerMoves,
+    first_move_ms: firstMoveMs,
   }, props.requestId)
   hoverStartMs = undefined
 }
@@ -429,6 +435,8 @@ onBeforeUnmount(recordHover)
 
 function onEnter() {
   hoverStartMs = Date.now()
+  pointerMoves = 0
+  firstMoveMs = null
   hovering.value = true
   loadMetadataForPreview()
   // Try immediately. If metadata or the src arrive while still hovering, the watcher below starts it.
@@ -450,6 +458,10 @@ watch(
 )
 
 function onMove(e: MouseEvent) {
+  if (hoverStartMs !== undefined) {
+    pointerMoves++
+    firstMoveMs ??= Date.now()
+  }
   if (!hovering.value || !canHoverPlay.value || !videoEl.value) return
 
   const el = e.currentTarget as HTMLElement | null
