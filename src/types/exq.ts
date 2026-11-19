@@ -73,11 +73,6 @@ export interface ExqChatFeedbackRequest {
   excluded: number[]
 }
 
-export interface ExqQueryRewriteRequest {
-  query: string
-  positive: number
-}
-
 // /exq/info/indexes
 export interface ExqIndexInfo {
   name: string
@@ -123,10 +118,9 @@ export interface ExqTemporalSearchRequest {
 // /exq/item/info
 export interface ExqGetItemResponse {
   id: number
-  name: string
   mediaId: number
   mediaType: MediaType
-  thumbPath: string
+  thumbPath: string | null // null when the media has no thumbnail, e.g. a whole video
   srcPath: string
   groupId?: number
   // Only present when filterIds were sent, keyed by tagset name
@@ -147,11 +141,6 @@ export interface ExqApplyFiltersRequest {
   session_info : ExqSessionInfo
   name: string
   values: (number | string)[]
-}
-
-export interface ExqExcludeGroupRequest {
-  session_info: ExqSessionInfo
-  itemId: number
 }
 
 export interface ExqIsExcludedRequest {
