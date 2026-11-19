@@ -11,7 +11,7 @@ import { pathToFileURL } from 'node:url'
 const temp = await mkdtemp(path.join(tmpdir(), 'research-settings-'))
 const root = path.resolve(import.meta.dirname, '..')
 const bundle = await build({
-  stdin: { contents: `export * from './src/stores/app'; export * from './src/stores/model'; export * from './src/services/http'; export {createPinia,setActivePinia} from 'pinia'; export {nextTick} from 'vue'`, resolveDir: root },
+  stdin: { contents: `export * from './src/stores/app'; export * from './src/stores/model'; export * from './src/stores/advancedSearch'; export * from './src/stores/error'; export * from './src/services/http'; export {createPinia,setActivePinia} from 'pinia'; export {nextTick} from 'vue'`, resolveDir: root },
   bundle: true, write: false, format: 'esm', platform: 'node',
   alias: { '@': path.join(root, 'src') },
   // The app auto-imports Vue's API (vite.config.mts); add the names a store uses
@@ -65,5 +65,40 @@ test('model settings log per changed setting, with the model, and unchanged valu
   models.updateName(model, 'Mine')
   assert.deepEqual(settings().map(e => [e.data.setting, e.data.value, e.data.previous, e.data.model_id, e.data.collection]), [
     ['items_to_show', 100, 50, 0, 'demo'], ['history_enabled', true, false, 0, 'demo'], ['name', 'Mine', 'Tab 1', 0, 'demo'],
+  ])
+})
+
+test('the advanced search logs open and close in the store, with how it was opened', async () => {
+  lib.setSessionId('settings-test')
+  lib.setActivePinia(lib.createPinia())
+  const adv = lib.useAdvancedSearchStore()
+  events.length = 0
+  adv.open({ queryName: '', queryText: '', searchType: 'image', searchModel: 'clip', filters: undefined, history: false })
+  await lib.nextTick()
+  adv.close()
+  await lib.nextTick()
+  adv.open({ queryName: 'q', queryText: 'dogs', searchType: 'text', searchModel: 'clip', filters: undefined, history: true })
+  await lib.nextTick()
+  adv.isOpen = false // Escape or the backdrop, through v-model
+  await lib.nextTick()
+  const logged = events.filter(e => e.data.surface === 'advanced_search')
+  assert.deepEqual(logged.map(e => [e.data.change, e.data.search_type, e.data.from_history]), [
+    ['open', 'image', false], ['close', undefined, undefined], ['open', 'text', true], ['close', undefined, undefined],
+  ])
+  assert.ok(logged.every(e => e.target === 'search'))
+})
+
+test('the error notice logs when it shows, when a new error replaces it, and when it is dismissed', async () => {
+  lib.setSessionId('settings-test')
+  lib.setActivePinia(lib.createPinia())
+  const err = lib.useErrorStore()
+  events.length = 0
+  err.show(new Error('Cannot search in this video'))
+  err.show('Search failed')
+  err.dismiss()
+  await lib.nextTick()
+  const logged = events.filter(e => e.data.surface === 'error_notice')
+  assert.deepEqual(logged.map(e => [e.data.change, e.data.message, e.data.replaced]), [
+    ['open', 'Cannot search in this video', false], ['open', 'Search failed', true], ['close', undefined, undefined],
   ])
 })

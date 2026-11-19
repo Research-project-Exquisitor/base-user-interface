@@ -144,7 +144,8 @@
 
 <script setup lang="ts">
 import { resultIds, resultRequestId, type ResultPage } from "@/types/results"
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { recordResearchEvent } from '@/services/researchLog'
 import ChatArea from '@/components/search/ChatArea.vue'
 import ResultGrid from '@/components/search/ResultGrid.vue'
 import MediaViewer from '@/components/viewer/MediaViewer.vue'
@@ -172,6 +173,13 @@ const feedbackStore = useFeedbackStore()
 const errorStore = useErrorStore()
 const submissionStore = useSubmissionStore()
 const chatVisible = ref(true)
+// Hiding the search history panel widens the result grid (D29)
+watch(chatVisible, (visible) => {
+  recordResearchEvent('display_change', 'search', {
+    surface: 'search_history_panel', change: visible ? 'open' : 'close',
+    model_id: modelStore.activeModel?.id ?? null,
+  })
+})
 const posDrawerOpen = ref(false)
 const negDrawerOpen = ref(false)
 const posDialogOpen = ref(false)

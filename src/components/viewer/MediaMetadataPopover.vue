@@ -288,8 +288,29 @@ watch(open, (isOpen) => {
   // If video panel exists => shot is 1, else shot is 0.
   const shotIdx = hasVideoMeta.value ? 1 : 0
   if (hasItemMeta.value && !expandedPanels.value.includes(shotIdx)) {
+    autoExpand = true
     expandedPanels.value = [shotIdx]
   }
+})
+
+// Which sections are open changes what's shown (D29): logged by name while the
+// popover is open, whether a title, "expand all" or the popover itself changed it.
+let autoExpand = false
+const renderedSections = computed(() => [
+  ...(hasVideoMeta.value ? ['video'] : []),
+  ...(hasItemMeta.value ? ['shot'] : []),
+  ...(hasItemMeta.value && moreKeys.value.length > 0 ? ['more'] : []),
+])
+watch(expandedPanels, (panels) => {
+  const cause = autoExpand ? 'auto' : 'user'
+  autoExpand = false
+  if (!open.value) return
+  recordResearchEvent('display_change', 'video', {
+    surface: 'video_info', change: 'sections', cause,
+    // An index with no section ("expand all" can set one) shows nothing, so it isn't listed
+    open_sections: [...panels].sort((a, b) => a - b).map(i => renderedSections.value[i]).filter(Boolean),
+    item_id: props.item?.id ?? null, model_id: Number(props.modelId),
+  })
 })
 </script>
 
