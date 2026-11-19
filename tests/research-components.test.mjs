@@ -155,9 +155,15 @@ test('related results log displayed IDs and clicks even when item data is cached
  s.onSelect(11)
  const click=emitted('result_click')[0]
  assert.equal(click.request_id,'rf-original');assert.equal(click.data.item_id,11);assert.equal(click.data.parent_item_id,10)
+ s.dialogOpen.value=true
  s.showRow([11,12])
  assert.equal(emitted('result_state').at(-1).data.surface,'related_dialog')
  assert.deepEqual(emitted('result_state').at(-1).data.ids,[11,12])
+ // Rows rendered during the closing animation aren't logged (dialogOpen is already false)
+ const logged=emitted('result_state').length
+ s.dialogOpen.value=false
+ s.showRow([12])
+ assert.equal(emitted('result_state').length,logged)
  unmount()
 })
 

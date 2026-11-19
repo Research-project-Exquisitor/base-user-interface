@@ -21,6 +21,10 @@ import App from '@/App.vue'
 import { createApp } from 'vue'
 import { useErrorStore } from '@/stores/error'
 import { HttpError } from '@/services/http'
+import { installPageStateLogging } from '@/services/pageState'
+import { installScrollLogging } from '@/services/scrollLog'
+import { installNavigationLogging } from '@/services/navigationLog'
+import router from '@/router'
 
 const app = createApp(App)
 
@@ -44,4 +48,7 @@ app.config.errorHandler = (err) => {
   }
 }
 
+installPageStateLogging()
+installScrollLogging()
+installNavigationLogging(router)
 app.mount('#app')

@@ -125,7 +125,7 @@
       </div>
 
       <!-- Normal grid view -->
-      <div v-else-if="!groupView" class="result-grid" :style="gridStyle">
+      <div v-else-if="!groupView" ref="gridEl" class="result-grid" :style="gridStyle">
         <ItemTile
           v-for="id in shownIds"
           :key="`${activeModelId}-${id}`"
@@ -548,8 +548,26 @@ function onRemove(payload: { itemId: number; set: ILSets }) {
 // frameStateRecorder). A block's label isn't logged: it is the video's name,
 // which can be looked up from the block's key, and it resolves after the results
 // (placeholder id, then the name), which would make a label change look like a new state.
+// How many columns the grid lays out: CSS auto-fill picks them from the panel's
+// width and the tile size, so they change with the window (R18). Read from the
+// rendered grid, so a replay can lay it out the same way.
+const gridEl = ref<HTMLElement | null>(null)
+const columns = ref<number | null>(null)
+function measureColumns() {
+  columns.value = gridEl.value ? getComputedStyle(gridEl.value).gridTemplateColumns.split(' ').filter(Boolean).length : null
+}
+const gridResize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measureColumns)
+watch(gridEl, (el, previous) => {
+  if (previous) gridResize?.unobserve(previous)
+  if (el) gridResize?.observe(el)
+  measureColumns()
+})
+watch(tileWidth, measureColumns, { flush: 'post' })
+onBeforeUnmount(() => gridResize?.disconnect())
+
 const shownState = computed(() => ({
   surface: 'result_grid', model_id: activeModelId.value, collection: collection.value,
+  columns: groupView.value ? null : columns.value, tile_width: tileWidth.value,
   ids: groupView.value ? groupBlocks.value.flatMap(block => block.segments.flatMap(segment => segment.ids)) : shownIds.value,
   pages: gridPages.value, groups: groupView.value ? groupBlocks.value.map(({ label, ...block }) => block) : null, grouped: groupView.value,
 }))
