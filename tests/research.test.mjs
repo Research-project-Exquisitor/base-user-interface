@@ -41,8 +41,6 @@ test('all search families share linked submission, headers and response events',
   for (const [endpoint, invoke] of [
     ['clip', () => client.searchText(input)],
     ['clip', () => client.searchText({ ...input, search_model: 'text' })],
-    ['caption', () => client.searchText({ ...input, search_model: 'caption' })],
-    ['aggregate', () => client.searchText({ ...input, search_model: 'aggregate' })],
     ['image', () => client.searchImage({ ...input, image_b64: 'image' })],
     ['rf', () => client.searchRF({ session_info, n: 3, pos: [1], neg: [2] })],
     ['temporal', () => client.searchTemporal({ session_info, hops: [], n: 3 })],

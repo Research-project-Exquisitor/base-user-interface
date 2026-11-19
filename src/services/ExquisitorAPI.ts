@@ -3,9 +3,9 @@
 // Barrel re-export — import directly from the specific modules instead of this file.
 export { getMainURI } from './http'
 export { initSession, getCollections } from './sessionApi'
-export { searchRF, searchText, searchImage, searchTemporal, searchQueryRewrite } from './searchApi'
+export { searchRF, searchText, searchImage, searchTemporal } from './searchApi'
 export { getItem, getRelatedItems } from './itemApi'
 export { getFiltersInfo, getFilterValues } from './filterApi'
 export { getIndexes } from './indexApi'
-export { excludeGroup, isGroupExcluded } from './excludeApi'
+export { isGroupExcluded } from './excludeApi'
 export { submitAnswer } from './dresApi'

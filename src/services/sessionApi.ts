@@ -20,7 +20,7 @@ export const initSession = async (): Promise<ExqInitResponse> => {
     if (mock) return mockInitExq()
     const session = generateString(10)
     setSessionId(session)
-    const resp = await get<{ session: string; totalItems: number[]; collections: string[] }>(
+    const resp = await get<{ session: string; collections: string[] }>(
         '/exq/init/' + session
     )
     setSessionId(resp.session)

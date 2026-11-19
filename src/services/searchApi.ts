@@ -7,15 +7,11 @@ import type {
     ExqImageSearchRequest,
     ExqTemporalSearchRequest,
     ExqTemporalSearchResponse,
-    ExqQueryRewriteRequest,
 } from '@/types/exq'
-import type { ExqSearchResponse, ExqQueryRewriteResponse } from '@/types/chat'
+import type { ExqSearchResponse } from '@/types/chat'
 import { newRequestId, mock, post } from './http'
 import { recordResearchEvent } from './researchLog'
 import { doURF as mockDoURF } from './MockExquisitorAPI'
-
-// Separate service — different host from the main Exquisitor server
-const queryRewriteURI = 'http://mandla-1:5001'
 
 export const searchRF = async (req: ExqRFRequest): Promise<ExqRFResponse> => {
     if (mock) return mockDoURF(req)
@@ -29,11 +25,8 @@ export const searchText = async (req: ExqTextSearchRequest): Promise<ExqSearchRe
     }
     // Destructure so search_model is not sent to the server
     const { search_model, ...body } = req
-    let path = '/exq/search/clip'
-    if (search_model === 'caption') path = '/exq/search/caption'
-    else if (search_model === 'aggregate') path = '/exq/search/aggregate'
     console.log('Search object', body)
-    return postSearch(path, body)
+    return postSearch('/exq/search/clip', body)
 }
 
 // Shared event capture for migrated searches. Keep transport and correlation
@@ -80,17 +73,4 @@ export const searchTemporal = async (req: ExqTemporalSearchRequest): Promise<Exq
         ]
     }
     return postSearch('/exq/search/temporal', req)
-}
-
-export const searchQueryRewrite = async (req: ExqQueryRewriteRequest): Promise<ExqQueryRewriteResponse> => {
-    if (mock) return { userQuery: req.query, positive: req.positive, rewriteSuggestion: 'textual response' }
-    const resp: string = await fetch(queryRewriteURI + '/rewriteQuery', {
-        method: 'POST',
-        mode: 'cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(req),
-    }).then(val => val.json())
-    // Fire-and-forget log to Exquisitor server
-    recordResearchEvent('display_change', 'search', { change: 'query_rewritten', query: req.query, positive: req.positive, suggestion: resp })
-    return { userQuery: req.query, positive: req.positive, rewriteSuggestion: resp }
 }

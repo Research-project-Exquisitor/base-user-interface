@@ -9,12 +9,6 @@ export interface ExqSearchResponse {
   request_id?: string,
 }
 
-export interface ExqQueryRewriteResponse {
-  userQuery: string,
-  positive: number,
-  rewriteSuggestion: string
-}
-
 export interface ChatQuery {
   id: string
   name: string
