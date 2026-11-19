@@ -2,6 +2,7 @@
 <!-- SPDX-License-Identifier: AGP-3.0-or-later -->
 <template>
   <v-sheet
+    ref="rootEl"
     :data-eid="eidTile"
     :data-item-id="itemId"
     :data-model-id="modelId"
@@ -137,7 +138,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type MediaItem from '@/types/mediaitem'
 import { GroupMetadata, ILSets, MediaType } from '@/types/mediaitem'
 import { useItemStore } from '@/stores/item'
@@ -147,6 +148,7 @@ import { useErrorStore } from '@/stores/error'
 import { useSubmissionStore } from '@/stores/submission'
 import { submitAnswer } from '@/services/ExquisitorAPI'
 import { recordResearchEvent } from '@/services/researchLog'
+import { updateTileInfo, watchTileVisibility, type TileInfo } from '@/services/visibilityLog'
 
 const props = defineProps<{
   itemId: number
@@ -432,6 +434,30 @@ function recordHover() {
 
 // A tile can disappear while hovered, e.g. when a new search replaces the grid
 onBeforeUnmount(recordHover)
+
+// Whether the tile is on screen (R18, D26): see visibilityLog.ts.
+const rootEl = ref<{ $el: Element } | null>(null)
+const tileInfo = (): TileInfo => ({
+  item_id: props.itemId,
+  surface: props.surface,
+  model_id: props.modelId,
+  collection: useModelStore().getModelCollection(props.modelId),
+  request_id: props.requestId,
+})
+const tileEl = (): Element | undefined => {
+  const el = rootEl.value?.$el
+  return typeof Element !== 'undefined' && el instanceof Element ? el : undefined
+}
+let stopVisibility: (() => void) | undefined
+onMounted(() => {
+  const el = tileEl()
+  if (el) stopVisibility = watchTileVisibility(el, tileInfo)
+})
+watch(() => [props.itemId, props.surface, props.modelId, props.requestId], () => {
+  const el = tileEl()
+  if (el) updateTileInfo(el, tileInfo())
+})
+onBeforeUnmount(() => stopVisibility?.())
 
 function onEnter() {
   hoverStartMs = Date.now()

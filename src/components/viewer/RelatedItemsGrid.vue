@@ -418,7 +418,9 @@ watch(
   { immediate: true }
 )
 function showRow(ids: number[]) {
-  recordResearchEvent('result_state', 'results', { surface: 'related_dialog', relationship: 'related_to_selected', ids, parent_item_id: props.mediaItem.id, collection: collection.value, model_id: props.modelId }, props.parentRequestId)
+  // Rows keep rendering during the dialog's closing animation; dialogOpen is
+  // already false then, and the participant isn't looking at them.
+  if (dialogOpen.value) recordResearchEvent('result_state', 'results', { surface: 'related_dialog', relationship: 'related_to_selected', ids, parent_item_id: props.mediaItem.id, collection: collection.value, model_id: props.modelId }, props.parentRequestId)
   ensureLoaded(ids)
 }
 // How many related shots are shown (R11). The grid also adjusts these itself when

@@ -34,7 +34,10 @@ export function recordResearchEvent(
     // Snapshot mutable inputs (seen lists, filters, results) at capture time.
     data: JSON.parse(JSON.stringify(data)),
   }
-  void post('/exq/log/clientEventV2', [event]).catch((error: unknown) => {
+  // A hidden page may be closing: keepalive lets the request outlive it, so
+  // the last events (e.g. the tab being hidden) still arrive.
+  const keepalive = typeof document !== 'undefined' && document.visibilityState === 'hidden'
+  void post('/exq/log/clientEventV2', [event], undefined, { keepalive }).catch((error: unknown) => {
     console.error('Research event delivery failed', error)
   })
   return event

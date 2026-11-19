@@ -53,13 +53,15 @@ async function checkResponse(resp: Response, method: string, body?: unknown): Pr
     }
 }
 
-export async function post<T>(path: string, body: unknown, signal?: AbortSignal, context?: { requestId?: string; sequence?: number }): Promise<T> {
+/** `keepalive` lets the request finish after the page closes (small bodies only). */
+export async function post<T>(path: string, body: unknown, signal?: AbortSignal, context?: { requestId?: string; sequence?: number; keepalive?: boolean }): Promise<T> {
     const resp = await fetch(exqURI + path, {
         method: 'POST',
         mode: 'cors',
         headers: exqHeaders(context),
         body: JSON.stringify(body),
         signal,
+        ...(context?.keepalive && { keepalive: true }),
     })
     await checkResponse(resp, 'POST', body)
     return resp.json()
