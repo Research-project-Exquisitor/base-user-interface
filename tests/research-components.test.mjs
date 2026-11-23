@@ -39,7 +39,8 @@ export function reset() {
  })
  fixtures.model=model; fixtures.item=item; fixtures.filter=filters
  fixtures.app=reactive({session:'component-tests', selectedEvaluation:{id:''}})
- fixtures.advancedSearch=reactive({isOpen:false,payload:{},close(){this.isOpen=false}})
+ fixtures.advancedSearch=reactive({isOpen:false,payload:{},openedFrom:undefined,
+   open(next,from){this.payload=next;this.openedFrom=from;this.isOpen=true}, close(){this.isOpen=false}})
  fixtures.temporalSearchStore=reactive({isOpen:false,temporalSelection:[],loadingResults:false,maxVideos:100,chainsPerVideo:3,
    close(){this.isOpen=false}, search:async()=>[{requestId:'temporal-search',ids:[10,11]}]})
  fixtures.searchIndex=reactive({load:async()=>{},indexLabel:()=>undefined})
@@ -494,5 +495,19 @@ test('temporal mode and the temporal selection log their new state, and leaving 
   ['temporal_mode',false],['temporal_selection',[]],
  ])
  assert.deepEqual(changes.at(-1).data.previous_ids,['q1','q2'])
+ // No search produced these, so they carry no request id
+ assert.ok(changes.every(e=>e.request_id===undefined))
+ unmount()
+})
+
+test('each way of opening the advanced search names itself',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Chat,{modelId:0})
+ const from=[]
+ s.openAdvancedFromBar();from.push(fixtures.advancedSearch.openedFrom)
+ s.openAdvancedFromHistory({id:'q1',name:'dogs',text:'dogs',searchType:'text',searchModel:'clip',filters:undefined})
+ from.push(fixtures.advancedSearch.openedFrom)
+ s.openImageUploadDialog();from.push(fixtures.advancedSearch.openedFrom)
+ assert.deepEqual(from,['search_bar','history','image_button'])
  unmount()
 })
