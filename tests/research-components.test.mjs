@@ -511,3 +511,30 @@ test('each way of opening the advanced search names itself',async()=>{
  assert.deepEqual(from,['search_bar','history','image_button'])
  unmount()
 })
+
+test('a video without a Video ID field (PVD) logs its file name as video_id',async()=>{
+ reset()
+ fixtures.item.selected={id:12,metadata:{Title:'A walk'}}
+ fixtures.item.group={src:'http://localhost:5001/pvd/videos/000000_546314542.mp4',groupMediaType:runtime.MediaType.Video,itemsLoaded:true,items:[12]}
+ const {state:s,unmount}=await mount(runtime.Video)
+ const player=markRaw({currentTime:0,src:'',load(){},pause(){},play:async()=>{},removeAttribute(){}})
+ s.videoPlayer.value=player;s.syncVideo()
+ s.recordPlayback('play',false,{target:player})
+ const logged=events.filter(e=>e.target==='video'&&'video_id' in e.data)
+ assert.ok(logged.length>=2)
+ assert.ok(logged.every(e=>e.data.video_id==='000000_546314542'),JSON.stringify(logged.map(e=>e.data.video_id)))
+ unmount()
+})
+
+test('segment_open waits for the item metadata, so a second open logs once, at the real start',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Video)
+ // Another shot of the same video, already loaded from the grid without metadata
+ fixtures.item.selected={id:11,metadata:undefined}
+ await nextTick();await nextTick()
+ fixtures.item.selected.metadata={'Video ID':'video-a','Start (ms)':16000,'End (ms)':18000}
+ await nextTick();await nextTick()
+ const opens=emitted('display_change').filter(e=>e.data.change==='segment_open'&&e.data.item_id===11)
+ assert.deepEqual(opens.map(e=>[e.data.start_ms,e.data.end_ms]),[[16000,18000]])
+ unmount()
+})
