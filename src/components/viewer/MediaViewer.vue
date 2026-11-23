@@ -235,6 +235,15 @@ const videoId = computed(() => {
   return md['Video ID'] ?? selectedItem.value?.groupKey ?? ''
 })
 
+// The video's id in the research log. A collection without a `Video ID` field
+// (PVD groups keyframes by their video file) falls back to the video's file
+// name, so every video event says which video it was.
+const loggedVideoId = computed(() => {
+  if (videoId.value) return String(videoId.value)
+  const file = selectedGroup.value?.src.split(/[?#]/)[0].split('/').pop() ?? ''
+  return file.replace(/\.[^.]+$/, '')
+})
+
 // Title is a video (group) tagset; may come back as a list
 const title = computed(() => {
   const t: any = selectedGroup.value?.metadata?.['Title'] ?? (selectedItem.value?.metadata as any)?.['Title']
@@ -326,7 +335,7 @@ function seekVideo(seconds: number, cause: string) {
 }
 function refreshPlaybackContext() {
   if (!videoPlayer.value || !selectedItem.value || !isGroupVideo.value) return
-  playbackContext = { item_id: selectedItem.value.id, video_id: String(videoId.value), model_id: activeModelId.value,
+  playbackContext = { item_id: selectedItem.value.id, video_id: loggedVideoId.value, model_id: activeModelId.value,
     collection: modelStore.getModelCollection(activeModelId.value), requestId: itemStore.selectedRequestIds.get(activeModelId.value),
     start_ms: segment.value.startMs, end_ms: segment.value.endMs }
 }
@@ -429,7 +438,7 @@ function updateSelected(itemId?: number, requestId?: string) {
 // --- In-video search ---
 // Text search limited to this video. The results reorder the related grid
 const videoRequestId = ref<string>()
-const videoSearchContext = () => ({ item_id: selectedItem.value?.id, video_id: videoId.value,
+const videoSearchContext = () => ({ item_id: selectedItem.value?.id, video_id: loggedVideoId.value,
   model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value) })
 const videoQuery = ref<string | null>('')
 const videoResults = ref<number[] | null>(null)
@@ -508,7 +517,7 @@ function logClose(reason: 'close_button' | 'unmount') {
   closeLogged = true
   flushLoops()
   recordResearchEvent('display_change', 'video', {
-    change: 'segment_close', reason, item_id: selectedItem.value.id, video_id: videoId.value,
+    change: 'segment_close', reason, item_id: selectedItem.value.id, video_id: loggedVideoId.value,
     model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
     position_ms: videoPlayer.value ? Math.round(videoPlayer.value.currentTime * 1000) : null,
   }, itemStore.selectedRequestIds.get(activeModelId.value))
@@ -634,16 +643,19 @@ watch(loopSegment, (value, previous) => {
   if (!selectedItem.value) return
   flushLoops()
   recordResearchEvent('display_change', 'video', {
-    change: 'setting', setting: 'loop_segment', value, previous, item_id: selectedItem.value.id, video_id: videoId.value,
+    change: 'setting', setting: 'loop_segment', value, previous, item_id: selectedItem.value.id, video_id: loggedVideoId.value,
     model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
     position_ms: videoPlayer.value ? Math.round(videoPlayer.value.currentTime * 1000) : null,
   }, itemStore.selectedRequestIds.get(activeModelId.value))
 })
 
-watch(() => [selectedItem.value?.id, selectedGroup.value?.src, segment.value.startMs], () => {
-  if (!selectedItem.value || !isGroupVideo.value) return
+// Logged once the shot is known: an item already loaded from the grid can be
+// selected before its metadata (and so its start) arrives, which logged a
+// segment_open at 0 and then another at the real start.
+watch(() => [selectedItem.value?.id, selectedGroup.value?.src, segment.value.startMs, selectedItem.value?.metadata !== undefined], () => {
+  if (!selectedItem.value || !isGroupVideo.value || selectedItem.value.metadata === undefined) return
   recordResearchEvent('display_change', 'video', {
-    change: 'segment_open', item_id: selectedItem.value.id, video_id: videoId.value,
+    change: 'segment_open', item_id: selectedItem.value.id, video_id: loggedVideoId.value,
     model_id: activeModelId.value, collection: modelStore.getModelCollection(activeModelId.value),
     start_ms: segment.value.startMs, end_ms: segment.value.endMs,
   }, itemStore.selectedRequestIds.get(activeModelId.value))
