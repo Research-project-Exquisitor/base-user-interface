@@ -4,6 +4,9 @@ import { getMainURI } from "@/services/ExquisitorAPI"
 import { defineStore } from "pinia"
 import { ref, reactive, computed, watch } from "vue"
 import { recordResearchEvent } from "@/services/researchLog"
+import { startRecording as startRecordingSession, stopRecording as stopRecordingSession } from "@/services/recording"
+import { useModelStore } from "./model"
+import { useItemStore } from "./item"
 
 interface Collection {
   name: string
@@ -44,7 +47,32 @@ export const useAppStore = defineStore('app', () => {
   watch(submitButtonsOn, (value, previous) => logSetting('submit_buttons', value, previous))
   watch(() => selectedEvaluation.value.id, (value, previous) => logSetting('evaluation', value, previous))
 
+  // Recorded sessions (D32). A recording can start mid-use, so session_start
+  // carries the state a replay needs to begin from: settings, open tabs and
+  // the item open in the viewer. The result grid logs its results itself.
+  function startRecording() {
+    const modelStore = useModelStore()
+    const itemStore = useItemStore()
+    session.value = startRecordingSession({
+      collections: collections.value.map(c => c.name),
+      settings: {
+        theme: themeId.value, thumbnail_size: globalThumbSize.value,
+        submit_buttons: submitButtonsOn.value, evaluation: selectedEvaluation.value.id,
+      },
+      models: modelStore.models.map(m => ({ id: m.id, name: m.name, collection: m.collection, settings: m.settings })),
+      active_model: modelStore.activeModel?.id ?? null,
+      // The item open in the viewer of the active tab, if any
+      selected_item: modelStore.activeModel ? itemStore.getSelectedItem()?.id ?? null : null,
+    })
+  }
+
+  function stopRecording() {
+    stopRecordingSession()
+  }
+
   return {
+    startRecording,
+    stopRecording,
     selectedEvaluation,
     submitButtonsOn,
     submitEnabled,

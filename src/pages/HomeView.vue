@@ -1,6 +1,10 @@
 <!-- SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan -->
 <!-- SPDX-License-Identifier: AGP-3.0-or-later -->
 <template>
+  <!-- Recording can start here, before a collection is chosen (D32) -->
+  <div class="d-flex justify-end pa-3">
+    <RecordButton />
+  </div>
   <v-container class="d-flex flex-column align-center justify-center" style="min-height: 75vh">
     <v-icon size="72" color="primary" class="mb-3">mdi-database-search</v-icon>
     <h1 class="text-h3 font-weight-bold mb-1">Exquisitor</h1>
@@ -49,6 +53,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useAppStore } from '@/stores/app';
+import RecordButton from '@/components/general/RecordButton.vue';
 import { useModelStore } from '@/stores/model';
 import { useRouter } from 'vue-router'
 

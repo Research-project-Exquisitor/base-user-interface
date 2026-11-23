@@ -38,7 +38,7 @@ globalThis.fetch = async (url, init) => {
 const settings = () => events.filter(e => e.type === 'display_change' && e.data.change === 'setting')
 
 test('app settings log their new and previous value', async () => {
-  lib.setSessionId('settings-test')
+  lib.setSessionId('settings-test'); lib.setRecording(true)
   lib.setActivePinia(lib.createPinia())
   const app = lib.useAppStore()
   events.length = 0
@@ -55,7 +55,7 @@ test('app settings log their new and previous value', async () => {
 })
 
 test('model settings log per changed setting, with the model, and unchanged values log nothing', () => {
-  lib.setSessionId('settings-test-2')
+  lib.setSessionId('settings-test-2'); lib.setRecording(true)
   lib.setActivePinia(lib.createPinia())
   const models = lib.useModelStore()
   models.addModel('settings-test-2', 'demo', true)
@@ -69,7 +69,7 @@ test('model settings log per changed setting, with the model, and unchanged valu
 })
 
 test('the advanced search logs open and close in the store, with where it was opened from', async () => {
-  lib.setSessionId('settings-test')
+  lib.setSessionId('settings-test'); lib.setRecording(true)
   lib.setActivePinia(lib.createPinia())
   const adv = lib.useAdvancedSearchStore()
   events.length = 0
@@ -89,7 +89,7 @@ test('the advanced search logs open and close in the store, with where it was op
 })
 
 test('the error notice logs when it shows, when a new error replaces it, and when it is dismissed', async () => {
-  lib.setSessionId('settings-test')
+  lib.setSessionId('settings-test'); lib.setRecording(true)
   lib.setActivePinia(lib.createPinia())
   const err = lib.useErrorStore()
   events.length = 0

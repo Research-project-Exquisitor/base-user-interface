@@ -24,6 +24,7 @@ import { HttpError } from '@/services/http'
 import { installPageStateLogging } from '@/services/pageState'
 import { installScrollLogging } from '@/services/scrollLog'
 import { installNavigationLogging } from '@/services/navigationLog'
+import { installRecording } from '@/services/recording'
 import router from '@/router'
 
 const app = createApp(App)
@@ -51,4 +52,5 @@ app.config.errorHandler = (err) => {
 installPageStateLogging()
 installScrollLogging()
 installNavigationLogging(router)
+installRecording()
 app.mount('#app')

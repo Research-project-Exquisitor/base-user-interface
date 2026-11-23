@@ -32,6 +32,7 @@
     /> 
 
     <template v-slot:append>
+      <RecordButton />
       <ThemeButton :model-id="activeModel!.id" />
       <settings-form />
     </template>
@@ -41,6 +42,7 @@
 <script lang="ts" setup>
 import AddModelDialog from './AddModelDialog.vue';
 import DeleteDialog from '@/components/general/DeleteDialog.vue';
+import RecordButton from '@/components/general/RecordButton.vue';
 import SettingsForm from '@/components/model/SettingsForm.vue';
 import { useModelStore } from '@/stores/model';
 import { useAppStore } from '@/stores/app'

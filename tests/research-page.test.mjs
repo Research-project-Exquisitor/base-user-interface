@@ -50,7 +50,7 @@ test('nothing is logged before the session, then the state at session start', ()
   drawFrame()
   assert.deepEqual(changes(), [])
 
-  client.setSessionId('page-session')
+  client.setSessionId('page-session'); client.setRecording(true)
   client.logPageStateAtSessionStart()
   assert.deepEqual(changes(), [
     { type: 'display_change', target: 'session', keepalive: false, change: 'viewport', width: 1440, height: 900, device_pixel_ratio: 2, cause: 'session_start' },
