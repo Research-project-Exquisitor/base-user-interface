@@ -18,8 +18,13 @@ export const useAdvancedSearchStore = defineStore('advancedSearch', () => {
     history: false,
   } as any)
 
-  function open(next: AdvancedSearchPayload) {
+  // Where the dialog was opened from, for the research log only
+  type Opener = 'search_bar' | 'image_button' | 'history' | 'feedback_results'
+  let openedFrom: Opener | undefined
+
+  function open(next: AdvancedSearchPayload, from?: Opener) {
     payload.value = next
+    openedFrom = from
     isOpen.value = true
   }
 
@@ -34,7 +39,7 @@ export const useAdvancedSearchStore = defineStore('advancedSearch', () => {
     const model = useModelStore().activeModel
     recordResearchEvent('display_change', 'search', {
       surface: 'advanced_search', change: open ? 'open' : 'close',
-      ...(open ? { search_type: payload.value.searchType, from_history: !!payload.value.history } : {}),
+      ...(open ? { search_type: payload.value.searchType, opened_from: openedFrom ?? null } : {}),
       model_id: model?.id ?? null, collection: model?.collection ?? null,
     })
   })

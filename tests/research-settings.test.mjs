@@ -68,22 +68,22 @@ test('model settings log per changed setting, with the model, and unchanged valu
   ])
 })
 
-test('the advanced search logs open and close in the store, with how it was opened', async () => {
+test('the advanced search logs open and close in the store, with where it was opened from', async () => {
   lib.setSessionId('settings-test')
   lib.setActivePinia(lib.createPinia())
   const adv = lib.useAdvancedSearchStore()
   events.length = 0
-  adv.open({ queryName: '', queryText: '', searchType: 'image', searchModel: 'clip', filters: undefined, history: false })
+  adv.open({ queryName: '', queryText: '', searchType: 'image', searchModel: 'clip', filters: undefined }, 'image_button')
   await lib.nextTick()
   adv.close()
   await lib.nextTick()
-  adv.open({ queryName: 'q', queryText: 'dogs', searchType: 'text', searchModel: 'clip', filters: undefined, history: true })
+  adv.open({ queryName: 'q', queryText: 'dogs', searchType: 'text', searchModel: 'clip', filters: undefined }, 'history')
   await lib.nextTick()
   adv.isOpen = false // Escape or the backdrop, through v-model
   await lib.nextTick()
   const logged = events.filter(e => e.data.surface === 'advanced_search')
-  assert.deepEqual(logged.map(e => [e.data.change, e.data.search_type, e.data.from_history]), [
-    ['open', 'image', false], ['close', undefined, undefined], ['open', 'text', true], ['close', undefined, undefined],
+  assert.deepEqual(logged.map(e => [e.data.change, e.data.search_type, e.data.opened_from]), [
+    ['open', 'image', 'image_button'], ['close', undefined, undefined], ['open', 'text', 'history'], ['close', undefined, undefined],
   ])
   assert.ok(logged.every(e => e.target === 'search'))
 })
