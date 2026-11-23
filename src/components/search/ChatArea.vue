@@ -126,7 +126,7 @@ function openAdvancedFromHistory(q: ChatQuery) {
     searchType: q.searchType,
     searchModel: q.searchModel,
     filters: q.filters,
-  } as any)
+  } as any, 'history')
 }
 
 function openImageUploadDialog() {
@@ -136,7 +136,7 @@ function openImageUploadDialog() {
     searchType: 'image',
     searchModel: 'clip',
     filters: undefined,
-  }, 'history')
+  }, 'image_button')
 }
 
 function openTemporalDialog() {
@@ -191,7 +191,7 @@ watch(temporalMode, (on, was) => {
   recordResearchEvent('display_change', 'search', {
     surface: 'search_history', change: 'temporal_mode', value: on, previous: was,
     model_id: modelStore.activeModel?.id ?? null,
-  }, 'image_button')
+  })
 })
 watch(temporalSelection, (selection, previous) => {
   const ids = selection.map(q => q.id)
