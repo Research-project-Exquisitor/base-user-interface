@@ -30,20 +30,22 @@ function readViewport(): Viewport {
   return { width: window.innerWidth, height: window.innerHeight, device_pixel_ratio: window.devicePixelRatio }
 }
 
-function logViewport(cause: 'session_start' | 'resize'): void {
+type Start = 'session_start' | 'page_load'
+
+function logViewport(cause: Start | 'resize'): void {
   const viewport = readViewport()
   const key = `${viewport.width}x${viewport.height}@${viewport.device_pixel_ratio}`
   if (key === loggedViewport) return
   if (recordResearchEvent('display_change', 'session', { change: 'viewport', ...viewport, cause })) loggedViewport = key
 }
 
-function logVisibility(cause: 'session_start' | 'visibilitychange'): void {
+function logVisibility(cause: Start | 'visibilitychange'): void {
   const visible = document.visibilityState === 'visible'
   if (visible === loggedVisible) return
   if (recordResearchEvent('display_change', 'session', { change: 'page_visibility', visible, cause })) loggedVisible = visible
 }
 
-function logFocus(cause: 'session_start' | 'focus' | 'blur'): void {
+function logFocus(cause: Start | 'focus' | 'blur'): void {
   const focused = document.hasFocus()
   if (focused === loggedFocused) return
   if (recordResearchEvent('display_change', 'session', { change: 'window_focus', focused, cause })) loggedFocused = focused
@@ -87,10 +89,15 @@ export function installPageStateLogging(): void {
   window.addEventListener('blur', () => logFocus('blur'))
 }
 
-/** Logs the current size, visibility and focus right after `session_start`. */
-export function logPageStateAtSessionStart(): void {
+/** Logs the current size, visibility and focus right after `session_start`,
+ * or `page_load` when a recording continues after a reload. What an earlier
+ * recording logged doesn't count: each one starts with the full state. */
+export function logPageStateAtSessionStart(cause: Start = 'session_start'): void {
   if (typeof window === 'undefined') return
-  logViewport('session_start')
-  logVisibility('session_start')
-  logFocus('session_start')
+  loggedViewport = ''
+  loggedVisible = undefined
+  loggedFocused = undefined
+  logViewport(cause)
+  logVisibility(cause)
+  logFocus(cause)
 }

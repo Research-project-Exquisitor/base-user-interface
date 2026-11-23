@@ -17,6 +17,7 @@ declare module 'vue' {
     MediaMetadataPopover: typeof import('./components/viewer/MediaMetadataPopover.vue')['default']
     MediaViewer: typeof import('./components/viewer/MediaViewer.vue')['default']
     ModelBar: typeof import('./components/model/ModelBar.vue')['default']
+    RecordButton: typeof import('./components/general/RecordButton.vue')['default']
     RelatedItemsGrid: typeof import('./components/viewer/RelatedItemsGrid.vue')['default']
     ResultGrid: typeof import('./components/search/ResultGrid.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Ujjwal Sharma and Omar Shahbaz Khan
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { ClientLogEvent, EventTarget, EventType } from '@/types/logEvent'
-import { getSessionId, mock, post } from './http'
+import { getSessionId, isRecording, mock, post } from './http'
+import { persistSequence, storedSequence } from './recordingStorage'
 
 let sequenceSession = ''
 let nextSequence = 0
@@ -16,10 +17,11 @@ export function recordResearchEvent(
   requestId?: string,
 ): ClientLogEvent | undefined {
   const session = getSessionId()
-  if (mock || !session) return undefined
+  if (mock || !session || !isRecording()) return undefined
   if (session !== sequenceSession) {
     sequenceSession = session
-    nextSequence = 0
+    // A recording continued after a reload goes on with its sequence (D32)
+    nextSequence = storedSequence(session) ?? 0
   }
   const event: ClientLogEvent = {
     type,
@@ -34,9 +36,10 @@ export function recordResearchEvent(
     // Snapshot mutable inputs (seen lists, filters, results) at capture time.
     data: JSON.parse(JSON.stringify(data)),
   }
+  persistSequence(session, nextSequence)
   // A hidden page may be closing: keepalive lets the request outlive it, so
   // the last events (e.g. the tab being hidden) still arrive.
-  const keepalive = typeof document !== 'undefined' && document.visibilityState === 'hidden'
+  const keepalive = type === 'page_unload' || (typeof document !== 'undefined' && document.visibilityState === 'hidden')
   void post('/exq/log/clientEventV2', [event], undefined, { keepalive }).catch((error: unknown) => {
     console.error('Research event delivery failed', error)
   })
@@ -76,7 +79,13 @@ export function frameStateRecorder(type: EventType, target: EventTarget) {
     }
   }
 
-  return { update, flush }
+  /** Forget what was logged, so the current state is logged again: a recording
+   * that starts mid-use needs the state already on screen (D32). */
+  function forget(): void {
+    loggedKey = undefined
+  }
+
+  return { update, flush, forget }
 }
 
 /** One change to a query box, logged raw: the full text after the change and

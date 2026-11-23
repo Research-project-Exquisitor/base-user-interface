@@ -37,7 +37,7 @@ const session_info = { session: 'test-session', modelId: 0, collection: 'demo' }
 const input = { session_info, n: 3, text: 'dog', search_model: 'clip', seen: [] }
 
 test('all search families share linked submission, headers and response events', async () => {
-  client.setSessionId('test-session')
+  client.setSessionId('test-session'); client.setRecording(true)
   for (const [endpoint, invoke] of [
     ['clip', () => client.searchText(input)],
     ['clip', () => client.searchText({ ...input, search_model: 'text' })],
@@ -77,12 +77,12 @@ test('events snapshot mutable data and sequence resets with session', () => {
   const event = client.recordResearchEvent('result_state', 'results', data)
   data.ids.push(3)
   assert.deepEqual(event.data.ids, [1, 2])
-  client.setSessionId('second-session')
+  client.setSessionId('second-session'); client.setRecording(true)
   assert.equal(client.recordResearchEvent('display_change', 'session', {}).sequence, 0)
 })
 
 test('display states are logged once per drawn frame: steps replaced before a frame and unchanged states are not', async () => {
-  client.setSessionId('frame-session')
+  client.setSessionId('frame-session'); client.setRecording(true)
   requests.length = 0
   const logged = () => requests.filter(r => r.url.endsWith('/clientEventV2')).flatMap(r => r.body).filter(e => e.type === 'result_state')
   const frame = () => new Promise(resolve => setTimeout(resolve, 40))

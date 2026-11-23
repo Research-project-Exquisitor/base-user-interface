@@ -91,7 +91,7 @@ globalThis.fetch=async(url,init)=>{
  allEvents.push(...JSON.parse(init.body))
  return new Response('{"accepted":1}',{status:202})
 }
-runtime.setSessionId('component-tests')
+runtime.setSessionId('component-tests'); runtime.setRecording(true)
 const renderer=createRenderer({
  createElement:()=>({}),createText:()=>({}),createComment:()=>({}),setText:()=>{},setElementText:()=>{},
  parentNode:()=>null,nextSibling:()=>null,insert:()=>{},remove:()=>{},patchProp:()=>{},

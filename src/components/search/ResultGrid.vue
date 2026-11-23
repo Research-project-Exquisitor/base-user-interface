@@ -235,6 +235,7 @@ import type { GroupMetadata } from '@/types/mediaitem'
 import type { ExqTemporalChain } from '@/types/exq'
 import { useAppStore } from '@/stores/app'
 import { recordResearchEvent, frameStateRecorder } from '@/services/researchLog'
+import { onRecordingStart } from '@/services/recording'
 
 const props = defineProps<{
   modelId: number,
@@ -576,6 +577,12 @@ watch(() => JSON.stringify(shownState.value), (key) => {
   resultState.update(key, shownState.value)
 }, { immediate: true, flush: 'post' })
 onBeforeUnmount(resultState.flush)
+// A recording started mid-use logs the results already shown (D32)
+const stopSnapshot = onRecordingStart(() => {
+  resultState.forget()
+  resultState.update(JSON.stringify(shownState.value), shownState.value)
+})
+onBeforeUnmount(stopSnapshot)
 </script>
 
 <style scoped>

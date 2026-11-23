@@ -57,7 +57,7 @@ globalThis.fetch = async (url, init) => {
   return new Response('{"accepted":1}', { status: 202 })
 }
 const take = type => sent.splice(0).filter(e => e.type === type)
-client.setSessionId('screen-session')
+client.setSessionId('screen-session'); client.setRecording(true)
 
 const tile = (item_id, parent) => {
   const el = new FakeElement({ parent })
