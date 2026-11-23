@@ -347,6 +347,15 @@ const extraFilters = computed(() =>
 )
 
 const toggleExtraFilters = ref(false)
+// Showing the extra filters changes the dialog (D29). Closing the dialog also
+// hides them; that's the dialog closing, logged by the store, not logged here.
+watch(toggleExtraFilters, (shown) => {
+  if (!advStore.isOpen) return
+  recordResearchEvent('display_change', 'search', {
+    surface: 'advanced_search', change: shown ? 'extra_filters_open' : 'extra_filters_close',
+    model_id: activeModelId.value,
+  })
+})
 const file = ref<File | undefined>(undefined)
 
 type RangeInputState = { op: string; a: string; b: string }

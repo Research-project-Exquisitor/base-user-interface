@@ -86,6 +86,10 @@
          @pause="recordPlayback('pause', false, $event)"
          @ended="recordPlayback('ended', false, $event)"
          @seeking="recordPlayback('seek', true, $event)"
+         @volumechange="onVolumeChange"
+         @ratechange="onRateChange"
+         @enterpictureinpicture="onPictureInPicture(true, $event)"
+         @leavepictureinpicture="onPictureInPicture(false, $event)"
          class="viewer-video"
         >
           Your browser does not support the video tag.
@@ -192,7 +196,7 @@
 </template>
 
 <script setup lang="ts">
-import { recordResearchEvent, recordTextInput } from "@/services/researchLog"
+import { frameStateRecorder, recordResearchEvent, recordTextInput } from "@/services/researchLog"
 import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import AlbumViewer from './AlbumViewer.vue'
 import AudioPlayer from './AudioPlayer.vue'
@@ -577,6 +581,53 @@ function recordPlayback(action: string, seek: boolean, event: Event) {
     position_ms: Math.round(videoPlayer.value.currentTime * 1000), looping: loopSegment.value,
   }, requestId)
 }
+
+// The native controls' other actions (notes/sub-controls.md, D31). Each is read
+// from the element's state, so its button, a keyboard shortcut and the context
+// menu all count. Volume changes on every step while its slider is dragged, so
+// it's logged once per drawn frame (D18). A new <video> element starts muted
+// again, so its state is new even if it equals the last one logged.
+const volumeState = frameStateRecorder('display_change', 'video')
+let playerElement = 0
+watch(videoPlayer, () => { playerElement++ })
+
+function mediaContext(target: EventTarget | null) {
+  if (!playbackContext || !videoPlayer.value || target !== videoPlayer.value) return undefined
+  const { requestId, ...context } = playbackContext
+  return { requestId, data: { ...context, position_ms: Math.round(videoPlayer.value.currentTime * 1000) } }
+}
+
+function onVolumeChange(event: Event) {
+  const context = mediaContext(event.target)
+  if (!context) return
+  const { muted, volume } = videoPlayer.value!
+  volumeState.update(`${playerElement}:${muted}:${volume}`,
+    { ...context.data, change: 'volume', muted, volume: Math.round(volume * 100) / 100 })
+}
+
+function onRateChange(event: Event) {
+  const context = mediaContext(event.target)
+  if (context) recordResearchEvent('display_change', 'video',
+    { ...context.data, change: 'playback_rate', rate: videoPlayer.value!.playbackRate }, context.requestId)
+}
+
+function onPictureInPicture(on: boolean, event: Event) {
+  const context = mediaContext(event.target)
+  if (context) recordResearchEvent('display_change', 'video',
+    { ...context.data, change: 'picture_in_picture', on }, context.requestId)
+}
+
+// Fullscreen is reported on the document, for whichever element it applies to.
+let fullscreen = false
+function onFullscreenChange() {
+  const on = !!videoPlayer.value && document.fullscreenElement === videoPlayer.value
+  if (on === fullscreen) return
+  fullscreen = on
+  const context = mediaContext(videoPlayer.value ?? null)
+  if (context) recordResearchEvent('display_change', 'video', { ...context.data, change: 'fullscreen', on }, context.requestId)
+}
+onMounted(() => { if (typeof document !== 'undefined') document.addEventListener('fullscreenchange', onFullscreenChange) })
+onUnmounted(() => { if (typeof document !== 'undefined') document.removeEventListener('fullscreenchange', onFullscreenChange) })
 
 // The loop switch decides whether the open shot repeats (R11)
 watch(loopSegment, (value, previous) => {

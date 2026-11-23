@@ -13,6 +13,7 @@ const components = {
   Video: 'viewer/MediaViewer.vue', Related: 'viewer/RelatedItemsGrid.vue',
   Info: 'viewer/MediaMetadataPopover.vue', Tile: 'items/ItemTile.vue',
   Drawer: 'sets/SetsDrawer.vue', SetDialog: 'sets/SetsDialog.vue', History: 'search/SearchHistoryList.vue', Delete: 'general/DeleteDialog.vue',
+  Chat: 'search/ChatArea.vue',
 }
 const fixtureCode = `
 import { reactive } from 'vue'
@@ -42,10 +43,11 @@ export function reset() {
  fixtures.temporalSearchStore=reactive({isOpen:false,temporalSelection:[],loadingResults:false,maxVideos:100,chainsPerVideo:3,
    close(){this.isOpen=false}, search:async()=>[{requestId:'temporal-search',ids:[10,11]}]})
  fixtures.searchIndex=reactive({load:async()=>{},indexLabel:()=>undefined})
+ fixtures.chat=reactive({currentQueryId:undefined,getOrCreateChat:()=>[]})
  fixtures.submission={show:()=>{}}; fixtures.error={show:error=>{throw error}}
 }
 `
-const stores = { model:'useModelStore', item:'useItemStore', filter:'useFilterStore', app:'useAppStore', advancedSearch:'useAdvancedSearchStore', temporalSearchStore:'useTemporalSearchStore', searchIndex:'useSearchIndexStore', submission:'useSubmissionStore', error:'useErrorStore' }
+const stores = { model:'useModelStore', item:'useItemStore', filter:'useFilterStore', app:'useAppStore', advancedSearch:'useAdvancedSearchStore', temporalSearchStore:'useTemporalSearchStore', searchIndex:'useSearchIndexStore', submission:'useSubmissionStore', error:'useErrorStore', chat:'useChatStore' }
 const wanted = new Set(Object.values(components).map(p=>path.join(root,'src/components',p)))
 const temp = await mkdtemp(path.join(tmpdir(),'research-components-'))
 const bundle=await build({
@@ -410,4 +412,87 @@ test('the related grid logs its dialog and density changes, by user or by the gr
 
 after(async()=>{
  if(process.env.RESEARCH_EVENT_OUTPUT)await writeFile(process.env.RESEARCH_EVENT_OUTPUT,allEvents.map(e=>JSON.stringify(e)).join('\n')+'\n')
+})
+
+
+test('the video player logs volume once per frame, speed, picture-in-picture and fullscreen',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Video)
+ const player=markRaw({currentTime:2,src:'',muted:true,volume:1,playbackRate:1,load(){},pause(){},play:async()=>{},removeAttribute(){}})
+ s.videoPlayer.value=player;await nextTick();s.syncVideo()
+ const media=()=>emitted('display_change').filter(e=>e.target==='video'&&['volume','playback_rate','picture_in_picture','fullscreen'].includes(e.data.change))
+ // Unmuting, then dragging the volume within one frame: one event, the drawn state
+ player.muted=false;s.onVolumeChange({target:player})
+ player.volume=0.5;s.onVolumeChange({target:player})
+ player.volume=0.42;s.onVolumeChange({target:player})
+ await new Promise(r=>setTimeout(r,40))
+ assert.deepEqual(media().map(e=>[e.data.change,e.data.muted,e.data.volume]),[['volume',false,0.42]])
+ assert.equal(media()[0].data.item_id,10);assert.equal(media()[0].data.position_ms,2000)
+ // The same state again logs nothing
+ s.onVolumeChange({target:player});await new Promise(r=>setTimeout(r,40))
+ assert.equal(media().length,1)
+ player.playbackRate=1.5;s.onRateChange({target:player})
+ s.onPictureInPicture(true,{target:player});s.onPictureInPicture(false,{target:player})
+ globalThis.document={fullscreenElement:player}
+ s.onFullscreenChange();s.onFullscreenChange()
+ globalThis.document.fullscreenElement=null;s.onFullscreenChange()
+ delete globalThis.document
+ assert.deepEqual(media().slice(1).map(e=>[e.data.change,e.data.rate??e.data.on]),
+  [['playback_rate',1.5],['picture_in_picture',true],['picture_in_picture',false],['fullscreen',true],['fullscreen',false]])
+ assert.equal(media()[1].request_id,'search-original')
+ // A new <video> element: the same state as logged before is a new state for it
+ const replacement=markRaw({...player,muted:false,volume:0.42})
+ s.videoPlayer.value=replacement;await nextTick()
+ s.onVolumeChange({target:replacement});await new Promise(r=>setTimeout(r,40))
+ assert.equal(media().filter(e=>e.data.change==='volume').length,2)
+ // An event from an element that's no longer the player logs nothing
+ const before=events.length;s.onRateChange({target:player})
+ assert.equal(events.length,before)
+ unmount()
+})
+
+test('the video info popover logs its open sections by name, opened by the user or automatically',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Info,{modelId:0,item:{id:10,metadata:{Topic:'dogs',Extra:'x'}},
+  group:{metadata:{'Video ID':'video-a'}},isMainKey:k=>k==='Topic',isGroupKey:k=>k==='Video ID'})
+ s.expandedPanels.value=[0];await nextTick()
+ assert.equal(emitted('display_change').filter(e=>e.data.change==='sections').length,0,'nothing while the popover is closed')
+ s.expandedPanels.value=[];await nextTick()
+ s.open.value=true;await nextTick();await nextTick()
+ s.toggleExpandAll();await nextTick()
+ s.expandedPanels.value=[];await nextTick()
+ const sections=emitted('display_change').filter(e=>e.data.change==='sections')
+ assert.deepEqual(sections.map(e=>[e.data.cause,e.data.open_sections]),[['auto',['shot']],['user',['video','shot','more']],['user',[]]])
+ assert.equal(sections[0].data.item_id,10)
+ unmount()
+})
+
+test('the advanced search logs its extra filters only while it is open',async()=>{
+ reset()
+ fixtures.advancedSearch.isOpen=true
+ const {state:s,unmount}=await mount(runtime.Filters)
+ s.toggleExtraFilters.value=true;await nextTick()
+ s.toggleExtraFilters.value=false;await nextTick()
+ fixtures.advancedSearch.isOpen=false
+ s.toggleExtraFilters.value=true;await nextTick()
+ assert.deepEqual(emitted('display_change').filter(e=>e.data.surface==='advanced_search').map(e=>e.data.change),
+  ['extra_filters_open','extra_filters_close'])
+ unmount()
+})
+
+test('temporal mode and the temporal selection log their new state, and leaving the mode clears the selection',async()=>{
+ reset()
+ const {state:s,unmount}=await mount(runtime.Chat,{modelId:0})
+ s.temporalMode.value=true;await nextTick()
+ s.temporalSelection.value=[{id:'q1'}];await nextTick()
+ s.temporalSelection.value=[{id:'q1'},{id:'q2'}];await nextTick()
+ s.temporalMode.value=false;await nextTick();await nextTick()
+ s.temporalSelection.value=[];await nextTick()
+ const changes=emitted('display_change').filter(e=>e.data.surface==='search_history')
+ assert.deepEqual(changes.map(e=>[e.data.change,e.data.value??e.data.query_ids]),[
+  ['temporal_mode',true],['temporal_selection',['q1']],['temporal_selection',['q1','q2']],
+  ['temporal_mode',false],['temporal_selection',[]],
+ ])
+ assert.deepEqual(changes.at(-1).data.previous_ids,['q1','q2'])
+ unmount()
 })

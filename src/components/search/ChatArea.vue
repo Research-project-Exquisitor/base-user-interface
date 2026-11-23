@@ -62,7 +62,8 @@
 
 <script setup lang="ts">
 import type { ResultPage } from "@/types/results"
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { recordResearchEvent } from '@/services/researchLog'
 
 import SearchBar from '@/components/search/SearchBar.vue'
 import SearchHistoryList from '@/components/search/SearchHistoryList.vue'
@@ -181,6 +182,27 @@ async function search(refresh = false) {
 
 watch(temporalMode, (on) => {
   if (!on) temporalSelection.value = []
+})
+
+// Temporal mode shows the pick buttons in History, and the selection shows in
+// the temporal bar (D29). Picking, unpicking, clearing and leaving temporal mode
+// all change the selection, so it is logged whole, with what it was before.
+watch(temporalMode, (on, was) => {
+  recordResearchEvent('display_change', 'search', {
+    surface: 'search_history', change: 'temporal_mode', value: on, previous: was,
+    model_id: modelStore.activeModel?.id ?? null,
+  })
+})
+watch(temporalSelection, (selection, previous) => {
+  const ids = selection.map(q => q.id)
+  const previousIds = previous.map(q => q.id)
+  // Leaving temporal mode empties the selection again even when it is empty
+  if (ids.join() === previousIds.join()) return
+  recordResearchEvent('display_change', 'search', {
+    surface: 'search_history', change: 'temporal_selection',
+    query_ids: ids, previous_ids: previousIds,
+    model_id: modelStore.activeModel?.id ?? null,
+  })
 })
 </script>
 
