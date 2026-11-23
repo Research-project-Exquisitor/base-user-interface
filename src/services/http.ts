@@ -15,6 +15,17 @@ export const setSessionId = (id: string): void => {
 
 export const getSessionId = (): string => sessionId
 
+let recordingOn = false
+
+/** Whether a recorded session is on (research-workspace D32): research events
+ * are logged only then, in the browser and, through the sequence header, in
+ * the engine. `services/recording.ts` switches it. */
+export const setRecording = (on: boolean): void => {
+    recordingOn = on
+}
+
+export const isRecording = (): boolean => recordingOn
+
 /** A short random ID per request; the server tags its log lines with it. */
 export function newRequestId(): string {
     const bytes = crypto.getRandomValues(new Uint8Array(6))

@@ -14,8 +14,8 @@ import { load, save } from './recordingStorage'
  * never share a sequence), and ends with the tab. Its id is the session id, so
  * the engine's own events for its searches land in the same file.
  *
- * Each page load has a page id. A reload logs `page_end` when the page goes and
- * `page_start` on the next one; a recording without `session_end` ended with
+ * Each page load has a page id. A reload logs `page_unload` when the page goes and
+ * `page_load` on the next one; a recording without `session_end` ended with
  * its tab (or was lost).
  */
 
@@ -50,15 +50,15 @@ function navigationType(): string | null {
 }
 
 /** On page load: continues this tab's recording, if there is one, and returns
- * its id. Logs `page_start` with the page's state. */
+ * its id. Logs `page_load` with the page's state. */
 export function resumeRecording(): string | undefined {
   const stored = load()
   if (!stored) return undefined
   setSessionId(stored.id)
   setRecording(true)
   Object.assign(recordingState, { on: true, id: stored.id, startedAt: stored.startedAt })
-  recordResearchEvent('page_start', 'session', { page_id: pageId, navigation: navigationType(), path: location.pathname })
-  logPageStateAtSessionStart('page_start')
+  recordResearchEvent('page_load', 'session', { page_id: pageId, navigation: navigationType(), path: location.pathname })
+  logPageStateAtSessionStart('page_load')
   return stored.id
 }
 
@@ -91,12 +91,12 @@ export function stopRecording(): void {
 }
 
 let installed = false
-/** Logs `page_end` when the page goes (reload, navigation, tab close); call
+/** Logs `page_unload` when the page goes (reload, navigation, tab close); call
  * once when the app starts. Sent with keepalive, as the page is hidden by then. */
 export function installRecording(): void {
   if (installed || typeof window === 'undefined') return
   installed = true
   window.addEventListener('pagehide', () => {
-    if (recordingState.on) recordResearchEvent('page_end', 'session', { page_id: pageId })
+    if (recordingState.on) recordResearchEvent('page_unload', 'session', { page_id: pageId })
   })
 }

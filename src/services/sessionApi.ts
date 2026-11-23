@@ -9,7 +9,7 @@ import {
 
 export const initSession = async (): Promise<ExqInitResponse> => {
     if (mock) return mockInitExq()
-    // A recording this tab started continues after a reload (logs page_start);
+    // A recording this tab started continues after a reload (logs page_load);
     // otherwise the session is unrecorded until the Record button starts one (D32)
     const session = resumeRecording() ?? newSessionId()
     setSessionId(session)

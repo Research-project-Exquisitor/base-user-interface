@@ -30,7 +30,7 @@ function readViewport(): Viewport {
   return { width: window.innerWidth, height: window.innerHeight, device_pixel_ratio: window.devicePixelRatio }
 }
 
-type Start = 'session_start' | 'page_start'
+type Start = 'session_start' | 'page_load'
 
 function logViewport(cause: Start | 'resize'): void {
   const viewport = readViewport()
@@ -90,7 +90,7 @@ export function installPageStateLogging(): void {
 }
 
 /** Logs the current size, visibility and focus right after `session_start`,
- * or `page_start` when a recording continues after a reload. What an earlier
+ * or `page_load` when a recording continues after a reload. What an earlier
  * recording logged doesn't count: each one starts with the full state. */
 export function logPageStateAtSessionStart(cause: Start = 'session_start'): void {
   if (typeof window === 'undefined') return

@@ -39,7 +39,7 @@ export function recordResearchEvent(
   persistSequence(session, nextSequence)
   // A hidden page may be closing: keepalive lets the request outlive it, so
   // the last events (e.g. the tab being hidden) still arrive.
-  const keepalive = type === 'page_end' || (typeof document !== 'undefined' && document.visibilityState === 'hidden')
+  const keepalive = type === 'page_unload' || (typeof document !== 'undefined' && document.visibilityState === 'hidden')
   void post('/exq/log/clientEventV2', [event], undefined, { keepalive }).catch((error: unknown) => {
     console.error('Research event delivery failed', error)
   })

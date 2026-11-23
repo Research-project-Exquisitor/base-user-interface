@@ -19,7 +19,7 @@ const bundle = await build({
 const file = path.join(temp, 'recording.mjs')
 await writeFile(file, bundle.outputFiles[0].text)
 let page = 0
-// A page load, as main.ts does it: the page_end listener is installed at once
+// A page load, as main.ts does it: the page_unload listener is installed at once
 const loadPage = async () => {
   const tab = await import(pathToFileURL(file).href + `?page=${++page}`)
   tab.installRecording()
@@ -74,21 +74,21 @@ test('nothing is logged until recording starts, and session_start carries the st
   assert.equal(JSON.parse(store.get('exq.recording')).sequence, 4)
 })
 
-test('a reload continues the recording: page_end, then page_start, with the sequence going on', async () => {
+test('a reload continues the recording: page_unload, then page_load, with the sequence going on', async () => {
   const before = events.length
   const id = events[0].session_id
   listeners.pagehide.at(-1)() // the first page goes
-  assert.equal(events.at(-1).type, 'page_end')
-  assert.ok(sent.at(-1).keepalive, 'page_end outlives the page')
+  assert.equal(events.at(-1).type, 'page_unload')
+  assert.ok(sent.at(-1).keepalive, 'page_unload outlives the page')
   const firstPage = events.at(-1).data.page_id
   const tab = await loadPage() // the reload
   assert.equal(tab.resumeRecording(), id)
-  const pageStart = events.find((e, i) => i > before && e.type === 'page_start')
+  const pageStart = events.find((e, i) => i > before && e.type === 'page_load')
   assert.equal(pageStart.session_id, id)
   assert.equal(pageStart.sequence, events.at(before).sequence + 1, 'the sequence continues')
   assert.notEqual(pageStart.data.page_id, firstPage)
   assert.equal(pageStart.data.navigation, 'reload')
-  assert.equal(events.at(-1).data.cause, 'page_start')
+  assert.equal(events.at(-1).data.cause, 'page_load')
   const seqs = events.map(e => e.sequence)
   assert.deepEqual(seqs, seqs.map((_, i) => i), 'one gapless sequence across both pages')
 })
