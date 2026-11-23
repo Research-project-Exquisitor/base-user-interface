@@ -116,7 +116,7 @@ function openAdvancedFromBar() {
     searchType: searchType.value,
     searchModel: searchModel.value,
     filters: undefined,
-  })
+  }, 'search_bar')
 }
 
 function openAdvancedFromHistory(q: ChatQuery) {
@@ -136,7 +136,7 @@ function openImageUploadDialog() {
     searchType: 'image',
     searchModel: 'clip',
     filters: undefined,
-  })
+  }, 'history')
 }
 
 function openTemporalDialog() {
@@ -191,7 +191,7 @@ watch(temporalMode, (on, was) => {
   recordResearchEvent('display_change', 'search', {
     surface: 'search_history', change: 'temporal_mode', value: on, previous: was,
     model_id: modelStore.activeModel?.id ?? null,
-  })
+  }, 'image_button')
 })
 watch(temporalSelection, (selection, previous) => {
   const ids = selection.map(q => q.id)

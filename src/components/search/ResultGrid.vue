@@ -514,7 +514,7 @@ function openAdvancedFromRF() {
     searchModel: 'clip',
     filters: feedbackStore.getRFModelFilters(),
     history: false
-  })
+  }, 'feedback_results')
 }
 
 // Temporal pages come from the chains already loaded, other searches ask the server for more
