@@ -56,6 +56,9 @@ export const useChatStore = defineStore('chat', () => {
     if (n !== undefined) {
       n_items = n
     }
+    // The history entry this search makes or adds a page to: its id goes on the
+    // search's events, so the log links the entry to its search (D37)
+    const queryId = current ? chatSessions.get(modelId)![qIdx].id : generateUniqueId()
     let exclude : number[] = itemStore.getSetItems(modelStore.activeModel!.id, ILSets.Excluded).map(item => item.id)
     let resultIds : ExqSearchResponse = { suggestions: [] }
     if (searchType === 'text') {
@@ -72,7 +75,7 @@ export const useChatStore = defineStore('chat', () => {
         excluded: exclude,
         search_model: searchModel
       }
-      resultIds = await searchText(reqObj).then((res) => {
+      resultIds = await searchText(reqObj, { query_id: queryId }).then((res) => {
         return res
       })
     } else if (searchType === 'image') {
@@ -89,7 +92,7 @@ export const useChatStore = defineStore('chat', () => {
         excluded: exclude,
         search_model: searchModel
       }
-      resultIds = await searchImage(reqObj).then((res) => {
+      resultIds = await searchImage(reqObj, { query_id: queryId }).then((res) => {
         return res
       })
     }
@@ -97,7 +100,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!current) {
       const chat = chatSessions.get(modelId)
       chat!.push({
-        id: generateUniqueId(),
+        id: queryId,
         name: queryName,
         text: query,
         timestamp: Date.now(),

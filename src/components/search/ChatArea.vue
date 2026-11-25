@@ -126,7 +126,7 @@ function openAdvancedFromHistory(q: ChatQuery) {
     searchType: q.searchType,
     searchModel: q.searchModel,
     filters: q.filters,
-  } as any, 'history')
+  } as any, 'history', q.id)
 }
 
 function openImageUploadDialog() {

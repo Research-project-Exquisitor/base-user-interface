@@ -33,7 +33,8 @@
 
         <v-divider class="my-3" />
 
-        <v-window v-model="tab">
+        <!-- Named so a scroll of it is logged with a container (research-workspace D37) -->
+        <v-window v-model="tab" data-eid="settings_form_window">
           <!-- General -->
           <v-window-item value="general">
             <div class="text-subtitle-2 font-weight-bold mb-2">Theme</div>

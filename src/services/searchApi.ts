@@ -18,7 +18,14 @@ export const searchRF = async (req: ExqRFRequest): Promise<ExqRFResponse> => {
     return postSearch('/exq/search/rf', req)
 }
 
-export const searchText = async (req: ExqTextSearchRequest): Promise<ExqSearchResponse> => {
+/** Which history entry a search creates or adds a page to (research-workspace
+ * D37): `query_id`, and for a temporal search the entries it combines. */
+export interface SearchContext {
+    query_id?: string
+    hop_query_ids?: string[]
+}
+
+export const searchText = async (req: ExqTextSearchRequest, context?: SearchContext): Promise<ExqSearchResponse> => {
     if (mock) {
         if (req.text === 'test') return { suggestions: [33, 15, 20, 22] }
         else return { suggestions: [21, 59, 68, 25, 99] }
@@ -26,7 +33,7 @@ export const searchText = async (req: ExqTextSearchRequest): Promise<ExqSearchRe
     // Destructure so search_model is not sent to the server
     const { search_model, ...body } = req
     console.log('Search object', body)
-    return postSearch('/exq/search/clip', body)
+    return postSearch('/exq/search/clip', body, context)
 }
 
 // Shared event capture for migrated searches. Keep transport and correlation
@@ -34,11 +41,13 @@ export const searchText = async (req: ExqTextSearchRequest): Promise<ExqSearchRe
 async function postSearch<T extends { suggestions: unknown[] }>(
     path: string,
     body: ExqTextSearchRequest | ExqImageSearchRequest | ExqRFRequest | ExqTemporalSearchRequest,
+    context: SearchContext = {},
 ): Promise<T & { request_id?: string }> {
     const requestId = newRequestId()
     const submission = recordResearchEvent('query_submission', 'search', {
         endpoint: path,
         request: body,
+        ...context,
     }, requestId)
     try {
         const result = await post<T>(path, body, undefined, { requestId, sequence: submission?.sequence })
@@ -46,6 +55,7 @@ async function postSearch<T extends { suggestions: unknown[] }>(
             collection: body.session_info.collection,
             model_id: body.session_info.modelId,
             suggestions: result.suggestions,
+            ...context,
         }, requestId)
         return { ...result, request_id: requestId }
     } catch (error) {
@@ -57,12 +67,12 @@ async function postSearch<T extends { suggestions: unknown[] }>(
     }
 }
 
-export const searchImage = async (req: ExqImageSearchRequest): Promise<ExqSearchResponse> => {
+export const searchImage = async (req: ExqImageSearchRequest, context?: SearchContext): Promise<ExqSearchResponse> => {
     const { search_model, ...body } = req
-    return postSearch('/exq/search/image', body)
+    return postSearch('/exq/search/image', body, context)
 }
 
-export const searchTemporal = async (req: ExqTemporalSearchRequest): Promise<ExqTemporalSearchResponse> => {
+export const searchTemporal = async (req: ExqTemporalSearchRequest, context?: SearchContext): Promise<ExqTemporalSearchResponse> => {
     if (mock) return {
         // The first two chains share a video so it shows up twice
         suggestions: [
@@ -72,5 +82,5 @@ export const searchTemporal = async (req: ExqTemporalSearchRequest): Promise<Exq
             { group: 3, items: [40, 42, 45], length: 3, score: 0.5, start_ms: 120000, end_ms: 138000 },
         ]
     }
-    return postSearch('/exq/search/temporal', req)
+    return postSearch('/exq/search/temporal', req, context)
 }
