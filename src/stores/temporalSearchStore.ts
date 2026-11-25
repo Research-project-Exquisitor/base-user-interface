@@ -72,11 +72,13 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
       seen: [],
     }
 
+    // Its entry's id, and the entries it combines, go on the search's events (D37)
+    const queryId = generateUniqueId()
     loadingResults.value = true
     let chains: ExqTemporalChain[]
     let requestId: string | undefined
     try {
-      const response = await searchTemporal(reqObj)
+      const response = await searchTemporal(reqObj, { query_id: queryId, hop_query_ids: orderedSelection.map(q => q.id) })
       chains = response.suggestions
       requestId = response.request_id
     } finally {
@@ -90,7 +92,7 @@ export const useTemporalSearchStore = defineStore('temporalSearch', () => {
       text += ", ..."
     }
     chat.push({
-      id: generateUniqueId(),
+      id: queryId,
       name: "Temporal Search (" + text + ")",
       text: orderedSelection.map(q => q.text).join(" || "),
       timestamp: Date.now(),

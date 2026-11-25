@@ -55,6 +55,7 @@
                     <v-combobox
                      v-model="local.valueFilters[f.id]"
                      :data-eid="`adv_filter_${f.id}_alpha`"
+                     :list-props="valueListProps(f.id)"
                      chips
                      closable-chips
                      clearable
@@ -191,6 +192,7 @@
                         <v-combobox
                          v-model="local.valueFilters[f.id]"
                          :data-eid="`adv_filter_${f.id}_alpha`"
+                         :list-props="valueListProps(f.id)"
                          chips
                          closable-chips
                          clearable
@@ -314,6 +316,12 @@ import { useFilterStore } from '@/stores/filter'
 import { useModelStore } from '@/stores/model'
 import { useAppStore } from '@/stores/app'
 import { recordResearchEvent, recordTextInput } from '@/services/researchLog'
+
+// The value menu's list is drawn outside the dialog: its own data-eid names its
+// scrolls in the log (research-workspace D37). Vuetify's types list only VList
+// props, so the attribute goes through untyped.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const valueListProps = (id: number): any => ({ 'data-eid': `adv_filter_${id}_alpha_list` })
 import type { AdvancedSearchPayload } from '@/types/chat'
 import type {
   ActiveFiltersDB,
