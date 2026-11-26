@@ -306,11 +306,11 @@ function ensureLoaded(ids: number[]) {
 }
 
 function onAdd(payload: { itemId: number; set: ILSets }, dialog = false) {
-  itemStore.addItemToSet(payload.itemId, props.modelId, payload.set, dialog ? props.parentRequestId : props.requestId)
+  itemStore.addItemToSet(payload.itemId, props.modelId, payload.set, dialog ? props.parentRequestId : props.requestId, dialog ? 'related_dialog' : 'related_items')
 }
 
 function onRemove(payload: { itemId: number; set: ILSets }, dialog = false) {
-  itemStore.removeItemFromSet(payload.itemId, props.modelId, payload.set, dialog ? props.parentRequestId : props.requestId)
+  itemStore.removeItemFromSet(payload.itemId, props.modelId, payload.set, dialog ? props.parentRequestId : props.requestId, dialog ? 'related_dialog' : 'related_items')
 }
 
 const selectedId = computed(() => props.mediaItem?.id ?? -1)

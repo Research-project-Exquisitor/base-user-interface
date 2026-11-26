@@ -141,11 +141,11 @@ watch(() => props.modelValue, (open) => {
 
 
 function onAdd(payload: { itemId: number; set: ILSets }) {
-  itemStore.addItemToSet(payload.itemId, props.modelId, payload.set)
+  itemStore.addItemToSet(payload.itemId, props.modelId, payload.set, undefined, 'sets_dialog')
 }
 
 function onRemove(payload: { itemId: number; set: ILSets }) {
-  itemStore.removeItemFromSet(payload.itemId, props.modelId, payload.set)
+  itemStore.removeItemFromSet(payload.itemId, props.modelId, payload.set, undefined, 'sets_dialog')
 }
 </script>
 

@@ -161,11 +161,11 @@ watch(() => props.modelValue, (open) => {
 
 function onAdd(payload: { itemId: number; set: ILSets }) {
   // Clicking opposite button moves item by setting that set (your store clears the other)
-  itemStore.addItemToSet(payload.itemId, props.modelId, payload.set)
+  itemStore.addItemToSet(payload.itemId, props.modelId, payload.set, undefined, 'sets_drawer')
 }
 
 function onRemove(payload: { itemId: number; set: ILSets }) {
-  itemStore.removeItemFromSet(payload.itemId, props.modelId, payload.set)
+  itemStore.removeItemFromSet(payload.itemId, props.modelId, payload.set, undefined, 'sets_drawer')
 }
 </script>
 

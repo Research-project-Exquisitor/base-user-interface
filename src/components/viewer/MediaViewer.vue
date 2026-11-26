@@ -275,10 +275,10 @@ async function exclude() {
   const modelId = modelStore.activeModel!.id
 
   if (!isExcluded.value) {
-    itemStore.addItemToSet(selectedItem.value.id, modelId!, ILSets.Excluded)
+    itemStore.addItemToSet(selectedItem.value.id, modelId!, ILSets.Excluded, undefined, 'media_viewer')
   } else {
     const id = itemStore.getSetItems(modelId, ILSets.Excluded).find(item => item.groupId === selectedItem.value?.groupId)!.id
-    itemStore.removeItemFromSet(id, modelId!, ILSets.Excluded)
+    itemStore.removeItemFromSet(id, modelId!, ILSets.Excluded, undefined, 'media_viewer')
   }
 }
 
