@@ -538,11 +538,11 @@ function onOpen(itemId: number) {
 }
 
 function onAdd(payload: { itemId: number; set: ILSets }) {
-  itemStore.addItemToSet(payload.itemId, activeModelId.value, payload.set)
+  itemStore.addItemToSet(payload.itemId, activeModelId.value, payload.set, undefined, 'result_grid')
 }
 
 function onRemove(payload: { itemId: number; set: ILSets }) {
-  itemStore.removeItemFromSet(payload.itemId, activeModelId.value, payload.set)
+  itemStore.removeItemFromSet(payload.itemId, activeModelId.value, payload.set, undefined, 'result_grid')
 }
 
 // What the grid shows, in display order; logged once per drawn frame (see
